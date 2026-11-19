@@ -1,0 +1,154 @@
+.filter-form {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    width: 100%;
+    flex-wrap: wrap;
+}
+.search-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 240px;
+}
+.search-wrapper svg {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    color: #94a3b8;
+    pointer-events: none;
+}
+.search-wrapper input {
+    width: 100%;
+    padding: 9px 12px 9px 36px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 13px;
+}
+.btn-filter {
+    background: #0284c7;
+    padding: 9px 16px;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.btn-filter:hover { background: #0369a1; }
+.btn-clear {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+.btn-clear:hover { background: #e2e8f0; }
+
+.grid-alumnos {
+    display: grid;
+    grid-template-columns: 2.2fr 1fr;
+    gap: 24px;
+    align-items: start;
+}
+@media (max-width: 1050px) {
+    .grid-alumnos { grid-template-columns: 1fr; }
+}
+
+.badge-matriculado {
+    background: #e0f2fe;
+    color: #0369a1;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-block;
+}
+.actions-cell { display: flex; gap: 6px; }
+.btn-icon {
+    padding: 6px 9px;
+    border-radius: 7px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #334155;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+.btn-icon:hover { background: #e0f2fe; color: #0284c7; border-color: #bae6fd; }
+.btn-icon.danger:hover { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
+
+.form-group { margin-bottom: 14px; }
+.form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    margin-bottom: 5px;
+}
+.form-group input, .form-group select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 13px;
+    background: #f8fafc;
+}
+.form-group input:focus, .form-group select:focus {
+    border-color: #0284c7;
+    background: #ffffff;
+    outline: none;
+}
+.form-row-2 {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 10px;
+}
+.info-note {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    margin-bottom: 16px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+.btn-full { width: 100%; justify-content: center; display: flex; align-items: center; gap: 8px; }
+
+/* Modal de Edición */
+.modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.modal-backdrop.open { display: flex; }
+.modal-box {
+    background: #ffffff;
+    width: 100%;
+    max-width: 440px;
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 20px 30px rgba(15, 23, 42, 0.2);
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
+}

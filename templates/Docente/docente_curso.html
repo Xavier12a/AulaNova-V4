@@ -1,0 +1,167 @@
+{% extends "layout.html" %}
+{% block title %}Gestionar Notas - {{ curso.nombre_curso }} - AulaNova{% endblock %}
+{% block header_title %}Curso: {{ curso.nombre_curso }} ({{ curso.grado }} - Sección {{ curso.seccion }}){% endblock %}
+
+{% block extra_style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/docente_curso.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="top-nav-row">
+    <a href="{{ url_for('dashboard_docente') }}" class="btn-back">← Volver a Mis Cursos</a>
+    <a href="{{ url_for('docente_tareas', id_curso=curso.id_curso) }}" class="btn-tasks-link">
+        Ir a Tareas y Prácticas
+    </a>
+</div>
+
+<div class="filter-bar">
+    <form method="get">
+        <div class="filter-group">
+            <label for="periodo">Periodo / Bimestre</label>
+            <select id="periodo" name="periodo" onchange="this.form.submit()">
+                {% for b in bimestres %}
+                <option value="{{ b }}" {% if periodo == b %}selected{% endif %}>{{ b }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+
+    <div class="summary-chips">
+        <div class="chip-stat">Salón: <strong>{{ curso.grado }} "{{ curso.seccion }}"</strong></div>
+        <div class="chip-stat">Alumnos: <strong>{{ alumnos|length }}</strong></div>
+        <div class="chip-stat">Promedio del aula: <strong id="promedioGrupo">—</strong></div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Registro de calificaciones — {{ periodo }}</h3>
+    <p>La nota final usa el promedio de las tareas calificadas.
+       Para asignar otra nota, escribe un ajuste manual y guarda.</p>
+
+    {% if alumnos %}
+    <form method="post">
+        <input type="hidden" name="periodo" value="{{ periodo }}">
+
+        <div style="overflow-x:auto">
+            <table>
+                <thead>
+                    <tr>
+                        <th>DNI</th>
+                        <th>Apellidos y nombres</th>
+                        <th>Promedio de tareas</th>
+                        <th>Ajuste manual</th>
+                        <th>Nota final</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in alumnos %}
+                    <tr class="fila-nota"
+                        data-promedio="{{ a.promedio if a.promedio is not none else '' }}">
+                        <td><strong>{{ a.dni }}</strong></td>
+                        <td>{{ a.apellidos }}, {{ a.nombres }}</td>
+                        <td>
+                            {% if a.promedio is not none %}
+                                {{ a.promedio }} ({{ a.promedio|nota_literal }})
+                            {% else %}
+                                Sin calificar
+                            {% endif %}
+                        </td>
+                        <td>
+                            <input type="hidden" name="anterior_{{ a.id_usuario }}"
+                                   value="{{ a.ajuste if a.ajuste is not none else '' }}">
+                            <input type="number" class="nota-input" min="0" max="20" step="0.1"
+                                   name="ajuste_{{ a.id_usuario }}"
+                                   aria-label="Ajuste manual de {{ a.nombres }} {{ a.apellidos }}"
+                                   value="{{ a.ajuste if a.ajuste is not none else '' }}"
+                                   placeholder="Auto">
+                            <button type="button" class="usar-promedio">Usar promedio</button>
+                        </td>
+                        <td><strong class="nota-final" style="white-space: nowrap;">
+                            {% if a.nota_final is not none %}
+                                {{ a.nota_final }} ({{ a.nota_final|nota_literal }})
+                            {% else %}
+                                —
+                            {% endif %}
+                        </strong></td>
+                        <td><span class="estado-pill estado"></span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between;">
+            <span><strong>Equivalencia MINEDU:</strong></span>
+            <span><strong>AD</strong> (18.0 – 20.0): Logro Destacado</span>
+            <span><strong>A</strong> (14.0 – 17.9): Logro Esperado</span>
+            <span><strong>B</strong> (11.0 – 13.9): En Proceso</span>
+            <span><strong>C</strong> (0.0 – 10.9): En Inicio</span>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:20px">
+            <button type="submit" class="btn-save">Guardar calificaciones</button>
+        </div>
+    </form>
+    {% else %}
+    <p>No hay estudiantes matriculados en este salón.</p>
+    {% endif %}
+</div>
+
+<script>
+    const filasNotas = document.querySelectorAll('.fila-nota');
+
+    function notaLiteral(nota) {
+        if (nota >= 18) return 'AD';
+        if (nota >= 14) return 'A';
+        if (nota >= 11) return 'B';
+        return 'C';
+    }
+
+    function actualizarNotas() {
+        let suma = 0;
+        let cantidad = 0;
+
+        filasNotas.forEach(fila => {
+            const input = fila.querySelector('.nota-input');
+            const texto = input.value === '' ? fila.dataset.promedio : input.value;
+            const nota = texto === '' ? null : Number(texto);
+            const valida = nota !== null && Number.isFinite(nota) &&
+                           nota >= 0 && nota <= 20 && input.validity.valid;
+            const estado = fila.querySelector('.estado');
+
+            fila.querySelector('.nota-final').textContent =
+                valida ? `${nota.toLocaleString('es-PE', {maximumFractionDigits: 1})} (${notaLiteral(nota)})` : '—';
+
+            if (!valida) {
+                estado.textContent = input.validity.valid ? 'Sin nota' : 'Revisar nota';
+                estado.className = 'estado estado-pill est-pendiente';
+            } else {
+                suma += nota;
+                cantidad += 1;
+                estado.textContent = nota >= 11 ? 'Aprobado' : 'Desaprobado';
+                estado.className = 'estado estado-pill ' +
+                    (nota >= 11 ? 'est-aprobado' : 'est-desaprobado');
+            }
+        });
+
+        if (cantidad) {
+            const promAula = Number((suma / cantidad).toFixed(1));
+            document.getElementById('promedioGrupo').textContent =
+                `${promAula.toFixed(1)} (${notaLiteral(promAula)})`;
+        } else {
+            document.getElementById('promedioGrupo').textContent = '—';
+        }
+    }
+
+    filasNotas.forEach(fila => {
+        const input = fila.querySelector('.nota-input');
+        input.addEventListener('input', actualizarNotas);
+        fila.querySelector('.usar-promedio').addEventListener('click', () => {
+            input.value = '';
+            actualizarNotas();
+        });
+    });
+    actualizarNotas();
+</script>
+{% endblock %}

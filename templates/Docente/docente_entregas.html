@@ -1,0 +1,107 @@
+{% extends "layout.html" %}
+{% block title %}Revisión de Tarea - {{ tarea.titulo }} - AulaNova{% endblock %}
+{% block header_title %}Revisión de tarea: {{ tarea.titulo }} ({{ tarea.nombre_curso }}){% endblock %}
+
+{% block extra_style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/docente_entregas.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="top-nav-row">
+    <a href="{{ url_for('docente_tareas', id_curso=tarea.id_curso) }}" class="btn-back">
+        ← Volver a Tareas del Curso
+    </a>
+</div>
+
+<div class="task-detail-card">
+    <div>
+        <strong>{{ tarea.nombre_curso }}</strong> ·
+        {{ tarea.grado }} — Sección {{ tarea.seccion }} ·
+        {{ tarea.periodo or 'Bimestre pendiente de asignar' }}
+    </div>
+    <h3 class="task-detail-title">{{ tarea.titulo }}</h3>
+    <p>{{ tarea.descripcion }}</p>
+
+    <div class="task-detail-meta">
+        <div><strong>Fecha límite:</strong> {{ tarea.fecha_entrega }}</div>
+        {% if tarea.archivo_adjunto %}
+        <div>
+            <a target="_blank" rel="noopener"
+               href="{{ url_for('static', filename='uploads/' + tarea.archivo_adjunto) }}">
+                Ver archivo del docente
+            </a>
+        </div>
+        {% endif %}
+    </div>
+    {% if not tarea.periodo %}
+    <p>Para incluir esta actividad en el promedio, asígnale un bimestre en Tareas del Curso.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>Listado de alumnos y trabajos entregados</h3>
+    <p>Una casilla vacía queda pendiente. Para una tarea no presentada puedes registrar 0.</p>
+
+    {% if alumnos_entregas %}
+    <form method="post">
+        <div style="overflow-x:auto">
+            <table>
+                <thead>
+                    <tr>
+                        <th>DNI</th>
+                        <th>Apellidos y nombres</th>
+                        <th>Estado de entrega</th>
+                        <th>Archivo del alumno</th>
+                        <th>Calificación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ae in alumnos_entregas %}
+                    <tr>
+                        <td><strong>{{ ae.dni }}</strong></td>
+                        <td>{{ ae.apellidos }}, {{ ae.nombres }}</td>
+                        <td>
+                            {% if ae.id_entrega %}
+                            <span class="badge-entregado">Entregado</span>
+                            <div>{{ ae.fecha_entrega }}</div>
+                            {% else %}
+                            <span class="badge-no-entregado">No entregado</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if ae.archivo_alumno %}
+                            <a target="_blank" rel="noopener" class="btn-download-file"
+                               href="{{ url_for('static', filename='uploads/' + ae.archivo_alumno) }}">
+                                Descargar archivo
+                            </a>
+                            {% else %}
+                            Sin archivo enviado
+                            {% endif %}
+                        </td>
+                        <td>
+                            <input type="hidden" name="anterior_{{ ae.id_usuario }}"
+                                   value="{{ ae.nota if ae.nota is not none else '' }}">
+                            <input type="hidden" name="entrega_{{ ae.id_usuario }}"
+                                   value="{{ ae.id_entrega or '' }}">
+                            <input type="number" class="nota-input"
+                                   name="nota_{{ ae.id_usuario }}"
+                                   aria-label="Nota de {{ ae.nombres }} {{ ae.apellidos }}"
+                                   min="0" max="{{ 20 if ae.id_entrega else 0 }}" step="0.1"
+                                   value="{{ ae.nota if ae.nota is not none else '' }}"
+                                   placeholder="—">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:22px">
+            <button type="submit" class="btn-save-grades">Guardar calificaciones</button>
+        </div>
+    </form>
+    {% else %}
+    <p>No hay alumnos matriculados en esta sección.</p>
+    {% endif %}
+</div>
+{% endblock %}

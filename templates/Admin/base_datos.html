@@ -1,0 +1,117 @@
+{% extends "layout.html" %}
+{% block title %}Base de datos - AulaNova{% endblock %}
+{% block header_title %}Base de datos{% endblock %}
+
+{% block extra_style %}
+<style>
+    .db-panel {
+        background: white;
+        color: #17283b;
+        border: 1px solid #dce4ed;
+        border-radius: 12px;
+        padding: 22px;
+    }
+    .db-cabecera, .db-controles, .db-pie {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .db-cabecera, .db-pie { justify-content: space-between; }
+    .db-cabecera h2 { margin: 0; font-size: 20px; }
+    .db-detalle, .db-pie { color: #526477; font-size: 13px; }
+    .db-controles { margin: 20px 0 14px; }
+    .db-controles select, .db-controles button, .db-pie a {
+        padding: 8px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 7px;
+        background: white;
+        color: #17334e;
+        font: inherit;
+    }
+    .db-controles button {
+        background: #08689b;
+        color: white;
+        border-color: #08689b;
+        cursor: pointer;
+    }
+    .db-grilla { overflow: auto; }
+    .db-grilla table { width: 100%; border-collapse: collapse; }
+    .db-grilla caption { text-align: left; padding: 8px 0; color: #526477; }
+    .db-grilla th, .db-grilla td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid #e2e8f0;
+        white-space: nowrap;
+    }
+    .db-grilla th {
+        font-family: monospace;
+        background: #f1f5f9;
+        color: #34485c;
+    }
+    .db-pie { margin-top: 16px; }
+    .db-pie nav { display: flex; gap: 8px; }
+    .db-pie a { text-decoration: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="db-panel">
+    <div class="db-cabecera">
+        <h2>SQLite · aulanova.db</h2>
+        <span class="db-detalle">Solo lectura</span>
+    </div>
+
+    <form class="db-controles" method="get" action="{{ url_for('base_datos') }}">
+        <label for="tabla">Tabla</label>
+        <select name="tabla" id="tabla" onchange="this.form.submit()">
+            {% for nombre in tablas %}
+            <option value="{{ nombre }}" {% if nombre == tabla %}selected{% endif %}>
+                {{ nombre }}
+            </option>
+            {% endfor %}
+        </select>
+        <button type="submit">Actualizar</button>
+    </form>
+
+    <div class="db-grilla">
+        <table>
+            <caption>{{ tabla }} · {{ total }} registro{{ '' if total == 1 else 's' }}</caption>
+            <thead>
+                <tr>
+                    {% for columna in columnas %}
+                    <th scope="col">{{ columna }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in filas %}
+                <tr>
+                    {% for columna in columnas %}
+                    <td>{{ fila[columna] if fila[columna] is not none else '—' }}</td>
+                    {% endfor %}
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="{{ columnas|length }}">Esta tabla todavía no tiene registros.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if paginas > 1 %}
+    <div class="db-pie">
+        <span>Página {{ pagina }} de {{ paginas }}</span>
+        <nav aria-label="Páginas de la tabla">
+            {% if pagina > 1 %}
+            <a href="{{ url_for('base_datos', tabla=tabla, pagina=pagina-1) }}">Anterior</a>
+            {% endif %}
+            {% if pagina < paginas %}
+            <a href="{{ url_for('base_datos', tabla=tabla, pagina=pagina+1) }}">Siguiente</a>
+            {% endif %}
+        </nav>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,272 @@
+{% extends "layout.html" %}
+
+{% block title %}Supervisión de Asistencia - AulaNova{% endblock %}
+
+{% block header_title %}Supervisión y Reportes de Asistencia - I.E. 2060 Virgen de Guadalupe{% endblock %}
+
+{% block extra_style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/reporte_asistencia.css') }}">
+{% endblock %}
+
+{% block content %}
+
+{# Los indicadores del salón se calculan a partir del consolidado histórico. #}
+{% set ns = namespace(pres=0, tar=0, aus=0, reg=0) %}
+{% for r in reporte %}
+    {% set ns.pres = ns.pres + (r.total_presente or 0) %}
+    {% set ns.tar = ns.tar + (r.total_tardanza or 0) %}
+    {% set ns.aus = ns.aus + (r.total_ausente or 0) %}
+    {% set ns.reg = ns.reg + (r.total_registros or 0) %}
+{% endfor %}
+{% set pct_salon = ((ns.pres / ns.reg) * 100)|round(1) if ns.reg > 0 else 0 %}
+
+<div class="filter-bar">
+    <form method="GET" action="/reporte-asistencia" class="filter-controls">
+        <div class="filter-group">
+            <label for="gradoReporte">Grado</label>
+            <select id="gradoReporte" name="grado" onchange="this.form.submit()">
+                {% for nivel, grados in [
+                    ('Primaria', ['1ro', '2do', '3ro', '4to', '5to', '6to']),
+                    ('Secundaria', ['1ro', '2do', '3ro', '4to', '5to'])
+                ] %}
+                    <optgroup label="{{ nivel }}">
+                        {% for numero in grados %}
+                            {% set opcion = numero ~ ' de ' ~ nivel %}
+                            <option value="{{ opcion }}"{% if grado == opcion %} selected{% endif %}>
+                                {{ opcion }}
+                            </option>
+                        {% endfor %}
+                    </optgroup>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="seccionReporte">Sección</label>
+            <select id="seccionReporte" name="seccion" onchange="this.form.submit()">
+                {% for letra in ['A', 'B', 'C', 'D', 'E'] %}
+                    <option value="{{ letra }}"{% if seccion == letra %} selected{% endif %}>
+                        Sección {{ letra }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="fechaReporte">Fecha a Auditar</label>
+            <input type="date" id="fechaReporte" name="fecha"
+                   value="{{ fecha }}" onchange="this.form.submit()">
+        </div>
+    </form>
+
+    {% if reporte %}
+        <button type="button" class="btn-export" onclick="exportarReporteCSV()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" x2="12" y1="15" y2="3"/>
+            </svg>
+            Exportar Consolidado CSV
+        </button>
+    {% endif %}
+</div>
+
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-label">Alumnos en Aula</div>
+        <div class="kpi-value">{{ reporte|length }}</div>
+        <div class="kpi-sub">{{ grado }} "{{ seccion }}"</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-label">Puntualidad General</div>
+        <div class="kpi-value" style="color: #0284c7;">{{ pct_salon }}%</div>
+        <div class="kpi-sub">{{ ns.pres }} asistencias de {{ ns.reg }} registros</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-label">Tardanzas Acumuladas</div>
+        <div class="kpi-value" style="color: #b45309;">{{ ns.tar }}</div>
+        <div class="kpi-sub">Injustificadas en el periodo</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-label">Faltas Acumuladas</div>
+        <div class="kpi-value" style="color: #dc2626;">{{ ns.aus }}</div>
+        <div class="kpi-sub">Ausencias sin justificar</div>
+    </div>
+</div>
+
+<!-- Consolidado histórico del grado y la sección seleccionados -->
+<div class="card" style="margin-bottom: 24px;">
+    <div style="margin-bottom: 14px;">
+        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+            Consolidado Histórico - {{ grado }} "{{ seccion }}"
+        </h3>
+        <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
+            Resumen acumulado de asistencias registradas por el docente del aula.
+        </p>
+    </div>
+
+    <table id="tablaReporteAsistencia"
+           data-archivo="reporte_asistencia_{{ grado|replace(' ', '_') }}_{{ seccion }}.csv">
+        <thead>
+            <tr>
+                <th>DNI</th>
+                <th>Apellidos y Nombres</th>
+                <th style="text-align: center;">
+                    <span class="dot-indicator" style="background: #22c55e;"></span>Presentes (A)
+                </th>
+                <th style="text-align: center;">
+                    <span class="dot-indicator" style="background: #eab308;"></span>Tardanzas (T)
+                </th>
+                <th style="text-align: center;">
+                    <span class="dot-indicator" style="background: #ef4444;"></span>Faltas (F)
+                </th>
+                <th style="text-align: center;">
+                    <span class="dot-indicator" style="background: #3b82f6;"></span>Tard. Just. (TJ)
+                </th>
+                <th style="text-align: center;">
+                    <span class="dot-indicator" style="background: #a855f7;"></span>Faltas Just. (FJ)
+                </th>
+                <th style="text-align: center;">% Asistencia</th>
+                <th>Situación</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for r in reporte %}
+                {% set pres = r.total_presente or 0 %}
+                {% set tar = r.total_tardanza or 0 %}
+                {% set aus = r.total_ausente or 0 %}
+                {% set tj = r.total_tj or 0 %}
+                {% set fj = r.total_fj or 0 %}
+                {% set tot = r.total_registros or 0 %}
+                {% set pct = ((pres / tot) * 100)|round(0)|int if tot > 0 else 0 %}
+
+                <tr>
+                    <td><strong>{{ r.dni }}</strong></td>
+                    <td>{{ r.apellidos }}, {{ r.nombres }}</td>
+                    <td style="text-align: center;"><span class="count-pill pill-pres">{{ pres }}</span></td>
+                    <td style="text-align: center;"><span class="count-pill pill-tar">{{ tar }}</span></td>
+                    <td style="text-align: center;"><span class="count-pill pill-aus">{{ aus }}</span></td>
+                    <td style="text-align: center;"><span class="count-pill pill-tj">{{ tj }}</span></td>
+                    <td style="text-align: center;"><span class="count-pill pill-fj">{{ fj }}</span></td>
+                    <td style="text-align: center;"><strong>{{ pct }}%</strong></td>
+                    <td>
+                        {% if tot == 0 %}
+                            <span class="badge-estado estado-empty">Sin registros</span>
+                        {% elif aus >= 3 %}
+                            <span class="badge-estado estado-danger">Alerta por Faltas</span>
+                        {% elif tar >= 3 or aus >= 1 %}
+                            <span class="badge-estado estado-warn">En Observación</span>
+                        {% else %}
+                            <span class="badge-estado estado-ok">Regular</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="9" style="text-align: center; color: #94a3b8; padding: 30px;">
+                        No hay estudiantes matriculados en este grado y sección.
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Detalle de asistencia de la fecha seleccionada, en modo de solo lectura -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+        <div>
+            <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+                Detalle de Asistencia del Día ({{ fecha }})
+            </h3>
+            <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                Vista de auditoría en modo solo lectura sobre lo reportado en la fecha seleccionada.
+            </p>
+        </div>
+        <span style="font-size: 12px; font-weight: 600; color: #475569; background: #f1f5f9; padding: 4px 12px; border-radius: 20px;">
+            Modo Supervisión
+        </span>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 110px;">DNI</th>
+                <th>Apellidos y Nombres</th>
+                <th style="width: 190px;">Estado Reportado</th>
+                <th>Observación del Docente</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for d in detalle_fecha %}
+                <tr>
+                    <td><strong>{{ d.dni }}</strong></td>
+                    <td>{{ d.apellidos }}, {{ d.nombres }}</td>
+                    <td>
+                        {% if not d.estado %}
+                            <span class="badge-estado estado-empty">Sin toma de lista</span>
+                        {% elif d.estado == 'Presente' %}
+                            <span class="badge-estado estado-ok">Presente (A)</span>
+                        {% elif d.estado == 'Tardanza' %}
+                            <span class="badge-estado estado-warn">Tardanza (T)</span>
+                        {% elif d.estado == 'Ausente' %}
+                            <span class="badge-estado estado-danger">Ausente (F)</span>
+                        {% elif d.estado == 'Tardanza Justificada' %}
+                            <span class="badge-estado estado-tj">Tardanza Just. (TJ)</span>
+                        {% elif d.estado == 'Falta Justificada' %}
+                            <span class="badge-estado estado-fj">Falta Just. (FJ)</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size: 13px; color: #64748b;">
+                        {{ d.observacion if d.observacion else '—' }}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="4" style="text-align: center; color: #94a3b8; padding: 24px;">
+                        No hay estudiantes en este salón.
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    function exportarReporteCSV() {
+        const tabla = document.getElementById('tablaReporteAsistencia');
+        const lineas = [
+            'DNI;Apellidos y Nombres;Presentes (A);Tardanzas (T);Faltas (F);Tardanzas Justificadas (TJ);Faltas Justificadas (FJ);% Asistencia;Situación'
+        ];
+
+        for (const fila of tabla.tBodies[0].rows) {
+            if (fila.cells.length !== 9) continue;
+
+            const datos = Array.from(fila.cells, celda => {
+                const texto = celda.textContent.trim().replace(/"/g, '""');
+                return `"${texto}"`;
+            });
+
+            lineas.push(datos.join(';'));
+        }
+
+        const blob = new Blob(['\uFEFF', lineas.join('\r\n')], {
+            type: 'text/csv;charset=utf-8;'
+        });
+
+        const enlace = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        enlace.href = url;
+        enlace.download = tabla.dataset.archivo;
+        enlace.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+</script>
+{% endblock %}

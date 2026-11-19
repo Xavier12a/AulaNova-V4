@@ -1,0 +1,202 @@
+{% extends "layout.html" %}
+
+{% block title %}Docentes - AulaNova{% endblock %}
+{% block header_title %}Módulo de Docentes - I.E. 2060 Virgen de Guadalupe{% endblock %}
+
+{% block extra_style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/registro-compartido.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/docentes.css') }}">
+<style>
+    #tablaDocentes .actions-cell {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+    }
+    #tablaDocentes .accion-clave {
+        display: inline-block;
+        padding: 5px 8px;
+        border: 1px solid #c9d8e6;
+        border-radius: 6px;
+        color: #17517c;
+        background: white;
+        text-decoration: none;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mass-bar">
+    <div class="mass-title">
+        <h3>Acciones Masivas de Plana Docente</h3>
+        <p>Descarga la plantilla o revisa un archivo CSV para importar docentes.</p>
+    </div>
+    <div class="mass-controls">
+        <a href="/descargar-plantilla-docentes" class="btn-outline">
+            Descargar Plantilla CSV
+        </a>
+        <form action="/importar-docentes" method="POST"
+              enctype="multipart/form-data" class="import-form">
+            <input type="file" name="archivo" accept=".csv" required>
+            <button type="submit" class="btn-primary-sm">Revisar archivo</button>
+        </form>
+    </div>
+</div>
+
+<div class="grid-docentes">
+    <div class="card">
+        <div class="table-header-bar">
+            <div style="display:flex;align-items:center;gap:10px">
+                <h3 style="font-size:16px;color:#0f172a">Lista de Docentes Registrados</h3>
+                <span>{{ docentes|length }}</span>
+            </div>
+            <div class="search-inline">
+                <input type="text" id="buscarDocente"
+                       placeholder="Filtrar por DNI o nombre..." oninput="filtrarDocentes()">
+            </div>
+        </div>
+
+        <div style="overflow-x:auto">
+            <table id="tablaDocentes">
+                <thead>
+                    <tr>
+                        <th>DNI</th>
+                        <th>Nombres y Apellidos</th>
+                        <th>Correo Institucional</th>
+                        <th>Carga Académica</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in docentes %}
+                    <tr>
+                        <td><strong>{{ d.dni }}</strong></td>
+                        <td>{{ d.nombres }} {{ d.apellidos }}</td>
+                        <td>{{ d.correo }}</td>
+                        <td>
+                            {% if d.total_cursos %}
+                                <span class="badge-cursos">{{ d.total_cursos }} curso(s)</span>
+                            {% else %}
+                                <span class="badge-cursos sin-carga">Sin cursos</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="actions-cell">
+                                <button type="button" class="btn-icon" title="Editar docente"
+                                        aria-label="Editar a {{ d.nombres }} {{ d.apellidos }}"
+                                        data-id="{{ d.id_usuario }}" data-nombres="{{ d.nombres }}"
+                                        data-apellidos="{{ d.apellidos }}" data-dni="{{ d.dni }}"
+                                        onclick="abrirModalDocente(this)">
+                                    ✎
+                                </button>
+
+                                <a class="accion-clave"
+                                   href="{{ url_for('restablecer_clave', id_docente=d.id_usuario) }}">
+                                    Restablecer clave
+                                </a>
+
+                                <form action="/eliminar-docente/{{ d.id_usuario }}"
+                                      method="POST" style="margin:0"
+                                      onsubmit="return confirm('¿Eliminar a este docente?');">
+                                    <button type="submit" class="btn-icon danger"
+                                            title="Eliminar docente"
+                                            aria-label="Eliminar a {{ d.nombres }} {{ d.apellidos }}">
+                                        ×
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="text-align:center;padding:24px">
+                            No hay docentes registrados todavía.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Registrar Nuevo Docente</h3>
+
+        <div class="info-note">
+            El docente ingresará por primera vez con su DNI como usuario
+            y contraseña inicial. Al ingresar, elegirá una clave personal.
+        </div>
+
+        <form action="/crear-docente" method="POST">
+            <div class="form-group">
+                <label for="nombres">Nombres</label>
+                <input id="nombres" name="nombres" required placeholder="Ej. Roberto Carlos">
+            </div>
+            <div class="form-group">
+                <label for="apellidos">Apellidos</label>
+                <input id="apellidos" name="apellidos" required placeholder="Ej. Gómez Salazar">
+            </div>
+            <div class="form-group">
+                <label for="dni">DNI del Docente (8 dígitos)</label>
+                <input id="dni" name="dni" type="text" required maxlength="8"
+                       pattern="[0-9]{8}" inputmode="numeric" placeholder="Ej. 45829102">
+            </div>
+            <button type="submit" class="btn-full">Guardar y Generar Acceso</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="modalEditarDocente">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3>Editar Datos del Docente</h3>
+            <button type="button" onclick="cerrarModalDocente()" aria-label="Cerrar">×</button>
+        </div>
+
+        <form id="formEditarDocente" method="POST">
+            <div class="form-group">
+                <label for="edit_doc_nombres">Nombres</label>
+                <input id="edit_doc_nombres" name="nombres" required>
+            </div>
+            <div class="form-group">
+                <label for="edit_doc_apellidos">Apellidos</label>
+                <input id="edit_doc_apellidos" name="apellidos" required>
+            </div>
+            <div class="form-group">
+                <label for="edit_doc_dni">DNI (8 dígitos)</label>
+                <input id="edit_doc_dni" name="dni" type="text" required
+                       maxlength="8" pattern="[0-9]{8}" inputmode="numeric">
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;gap:10px">
+                <button type="button" onclick="cerrarModalDocente()">Cancelar</button>
+                <button type="submit">Guardar Cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function filtrarDocentes() {
+        const filtro = document.getElementById('buscarDocente').value.toLowerCase();
+        document.querySelectorAll('#tablaDocentes tbody tr').forEach(fila => {
+            fila.style.display = fila.textContent.toLowerCase().includes(filtro) ? '' : 'none';
+        });
+    }
+
+    function abrirModalDocente(boton) {
+        const docente = boton.dataset;
+        document.getElementById('formEditarDocente').action = '/editar-docente/' + docente.id;
+        document.getElementById('edit_doc_nombres').value = docente.nombres;
+        document.getElementById('edit_doc_apellidos').value = docente.apellidos;
+        document.getElementById('edit_doc_dni').value = docente.dni;
+        document.getElementById('modalEditarDocente').classList.add('open');
+    }
+
+    function cerrarModalDocente() {
+        document.getElementById('modalEditarDocente').classList.remove('open');
+    }
+</script>
+{% endblock %}

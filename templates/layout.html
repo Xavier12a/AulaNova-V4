@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AulaNova - Sistema Escolar{% endblock %}</title>
+
+    <link rel="icon" type="image/jpeg"
+          href="{{ url_for('static', filename='logo_colegio.jpg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+
+    <style>
+        .perfil-menu { position: relative; }
+        .perfil-menu summary { cursor: pointer; list-style: none; user-select: none; }
+        .perfil-menu summary::-webkit-details-marker { display: none; }
+        .perfil-menu .perfil-opciones {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            z-index: 100;
+            min-width: 195px;
+            padding: 5px;
+            background: white;
+            border: 1px solid #dce4ed;
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, .12);
+        }
+        .perfil-opciones a {
+            display: block;
+            padding: 10px 12px;
+            color: #17283b;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .perfil-opciones a:hover,
+        .perfil-opciones a:focus { background: #edf4fa; }
+    </style>
+
+    {% block extra_style %}{% endblock %}
+</head>
+<body>
+    {% macro icono(tipo) %}
+    <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        {% if tipo == 'tablero' %}
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+        {% elif tipo == 'alumnos' %}
+            <path d="M2 10l10-5 10 5-10 5zM6 12v5c3 3 9 3 12 0v-5M22 10v6"/>
+        {% elif tipo == 'docentes' %}
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M17 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-4"/>
+        {% elif tipo == 'cursos' %}
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a4 4 0 0 0-4-3H2zM22 3h-6a4 4 0 0 0-4 4v14a4 4 0 0 1 4-3h6z"/>
+        {% elif tipo == 'asistencia' %}
+            <rect x="3" y="5" width="18" height="16" rx="2"/>
+            <path d="M7 3v4M17 3v4M3 10h18M9 15l2 2 4-4"/>
+        {% elif tipo == 'notas' %}
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h6"/>
+        {% elif tipo == 'comunicados' %}
+            <path d="M3 11v2l3 1h5l10 5V5l-10 5H6zM6 14l2 6h3l-1-6"/>
+        {% elif tipo == 'base_datos' %}
+            <ellipse cx="12" cy="5" rx="8" ry="3"/>
+            <path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>
+        {% endif %}
+    </svg>
+    {% endmacro %}
+
+    {% macro enlace(ruta, texto, dibujo) %}
+    <li class="nav-item">
+        <a href="{{ ruta }}" class="{{ 'active' if request.path == ruta else '' }}">
+            <span class="nav-link-content">{{ icono(dibujo) }} {{ texto }}</span>
+        </a>
+    </li>
+    {% endmacro %}
+
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <img src="{{ url_for('static', filename='logo_colegio.jpg') }}"
+                 alt="Escudo del colegio" class="sidebar-logo">
+            <div class="sidebar-brand">
+                <h2>Aula<span>Nova</span></h2>
+                <p>I.E. 2060 V. Guadalupe</p>
+            </div>
+        </div>
+
+        <div class="search-box">
+            <div class="search-input-wrap">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.3-4.3"/>
+                </svg>
+                <input type="text" id="menuSearch" placeholder="Buscar módulo..."
+                       oninput="filtrarMenu()">
+            </div>
+        </div>
+
+        <ul class="nav-menu" id="sidebarMenu">
+            {% if session.get('id_rol') == 1 %}
+                {{ enlace('/dashboard', 'Tablero', 'tablero') }}
+                {{ enlace('/alumnos', 'Alumnos', 'alumnos') }}
+                {{ enlace('/docentes', 'Docentes', 'docentes') }}
+                {{ enlace('/cursos', 'Cursos y Tareas', 'cursos') }}
+                {{ enlace('/reporte-asistencia', 'Asistencia (Reportes)', 'asistencia') }}
+
+                <li class="nav-item">
+                    <button type="button" class="nav-dropdown-btn"
+                            onclick="toggleSubmenu('subCalif')">
+                        <span class="nav-link-content">{{ icono('notas') }} Calificaciones</span>
+                        <span aria-hidden="true">⌄</span>
+                    </button>
+                    <ul id="subCalif"
+                        class="submenu {{ 'open' if request.path in ['/calificaciones', '/libreta-academica'] else '' }}">
+                        <li>
+                            <a href="/calificaciones"
+                               class="{{ 'active' if request.path == '/calificaciones' else '' }}">
+                                Rendimiento por Salón
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/libreta-academica"
+                               class="{{ 'active' if request.path == '/libreta-academica' else '' }}">
+                                Libreta Académica
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+
+                {{ enlace('/comunicados', 'Comunicados', 'comunicados') }}
+                {{ enlace(url_for('base_datos'), 'Base de datos', 'base_datos') }}
+
+            {% elif session.get('id_rol') == 2 %}
+                {{ enlace('/dashboard_docente', 'Mis Cursos Asignados', 'tablero') }}
+                {{ enlace('/asistencia', 'Tomar Asistencia', 'asistencia') }}
+                {{ enlace('/comunicados', 'Comunicados', 'comunicados') }}
+
+            {% elif session.get('id_rol') == 3 %}
+                {{ enlace('/dashboard_estudiante', 'Mi Aula Virtual', 'alumnos') }}
+                {{ enlace('/comunicados', 'Comunicados Oficiales', 'comunicados') }}
+            {% endif %}
+        </ul>
+    </aside>
+
+    <div class="main-wrapper">
+        <header class="topbar">
+            <div class="topbar-title">
+                {% block header_title %}Panel Institucional{% endblock %}
+            </div>
+            <div class="user-actions">
+                <details class="perfil-menu" id="menuPerfil">
+                    <summary class="user-badge" aria-label="Abrir menú del perfil">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <circle cx="12" cy="7" r="4"/>
+                            <path d="M4 21v-2a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v2"/>
+                        </svg>
+                        {% if usuario %}
+                            {{ usuario['nombres'] }} {{ usuario['apellidos'] }}
+                        {% else %}
+                            Mi perfil
+                        {% endif %}
+                        <span aria-hidden="true">⌄</span>
+                    </summary>
+                    <div class="perfil-opciones">
+                        <a href="{{ url_for('cambiar_clave') }}">Cambiar contraseña</a>
+                    </div>
+                </details>
+
+                <a href="/logout" class="btn-logout">Cerrar Sesión</a>
+            </div>
+        </header>
+
+        <main class="content">
+            {% for mensaje in get_flashed_messages() %}
+                <div class="flash-msg">{{ mensaje }}</div>
+            {% endfor %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script>
+        function toggleSubmenu(id) {
+            document.getElementById(id).classList.toggle('open');
+        }
+
+        function filtrarMenu() {
+            const filtro = document.getElementById('menuSearch').value.toLowerCase();
+            document.querySelectorAll('#sidebarMenu > li').forEach(item => {
+                item.style.display = item.textContent.toLowerCase().includes(filtro) ? '' : 'none';
+            });
+        }
+
+        const perfil = document.getElementById('menuPerfil');
+
+        document.addEventListener('click', event => {
+            if (!perfil.contains(event.target)) perfil.open = false;
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && perfil.open) {
+                perfil.open = false;
+                perfil.querySelector('summary').focus();
+            }
+        });
+
+        window.addEventListener('pageshow', event => {
+            const entrada = performance.getEntriesByType('navigation')[0];
+            if (event.persisted || (entrada && entrada.type === 'back_forward')) {
+                window.location.reload();
+            }
+        });
+    </script>
+</body>
+</html>

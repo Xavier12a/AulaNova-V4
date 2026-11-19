@@ -1,0 +1,58 @@
+.mass-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    background: #ffffff;
+    padding: 18px 24px;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+}
+.mass-title h3 { font-size: 15px; font-weight: 700; color: #0f172a; }
+.mass-title p { font-size: 12px; color: #64748b; margin-top: 2px; }
+.mass-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.btn-outline {
+    background: #f0f9ff;
+    color: #0284c7;
+    border: 1.5px solid #bae6fd;
+    padding: 9px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.2s;
+}
+.btn-outline:hover { background: #e0f2fe; border-color: #7dd3fc; }
+
+.import-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8fafc;
+    padding: 5px 8px;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+}
+.import-form input[type="file"] {
+    border: none;
+    background: transparent;
+    padding: 4px;
+    font-size: 12px;
+    max-width: 210px;
+}
+.btn-primary-sm {
+    background: #0f172a;
+    color: #ffffff;
+    padding: 8px 14px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}

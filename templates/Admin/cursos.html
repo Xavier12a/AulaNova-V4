@@ -1,0 +1,303 @@
+{% extends "layout.html" %}
+
+{% block title %}Cursos y Asignaciones - AulaNova{% endblock %}
+
+{% block header_title %}Módulo de Cursos - I.E. 2060 Virgen de Guadalupe{% endblock %}
+
+{% block extra_style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cursos.css') }}">
+{% endblock %}
+
+{# La tabla y los formularios comparten los mismos grados y secciones. #}
+{% set secciones = ['A', 'B', 'C', 'D', 'E'] %}
+
+{% macro opciones_grado() %}
+    {% for nivel, grados in [
+        ('Primaria', ['1ro', '2do', '3ro', '4to', '5to', '6to']),
+        ('Secundaria', ['1ro', '2do', '3ro', '4to', '5to'])
+    ] %}
+        <optgroup label="{{ nivel }}">
+            {% for numero in grados %}
+                {% set grado = numero ~ ' de ' ~ nivel %}
+                <option value="{{ grado }}">{{ grado }}</option>
+            {% endfor %}
+        </optgroup>
+    {% endfor %}
+{% endmacro %}
+
+{% macro opciones_seccion() %}
+    {% for seccion in secciones %}
+        <option value="{{ seccion }}">Sección {{ seccion }}</option>
+    {% endfor %}
+{% endmacro %}
+
+{% block content %}
+<div class="cursos-grid">
+    <!-- Lista de cursos y filtros por salón -->
+    <div class="card">
+        <div class="table-header-bar">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+                    Lista de Cursos por Salón
+                </h3>
+                <span style="background: #e2e8f0; color: #334155; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700;">
+                    {{ cursos|length }}
+                </span>
+            </div>
+
+            <div class="table-filters">
+                <div class="search-mini">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="m21 21-4.3-4.3"/>
+                    </svg>
+                    <input type="text" id="filtroCursoTexto"
+                           placeholder="Buscar curso o docente..."
+                           oninput="filtrarTablaCursos()">
+                </div>
+
+                <select id="filtroCursoGrado" class="filter-select-mini"
+                        aria-label="Filtrar por grado" onchange="filtrarTablaCursos()">
+                    <option value="">Todos los grados</option>
+                    {{ opciones_grado() }}
+                </select>
+
+                <select id="filtroCursoSeccion" class="filter-select-mini"
+                        aria-label="Filtrar por sección" onchange="filtrarTablaCursos()">
+                    <option value="">Todas las secciones</option>
+                    {{ opciones_seccion() }}
+                </select>
+            </div>
+        </div>
+
+        <table id="tablaCursos">
+            <thead>
+                <tr>
+                    <th>Nombre del Curso</th>
+                    <th>Grado</th>
+                    <th>Sección</th>
+                    <th>Docente a Cargo</th>
+                    <th>Actividad</th>
+                    <th style="width: 96px;">Acciones</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for c in cursos %}
+                    <tr data-grado="{{ c.grado }}" data-seccion="{{ c.seccion }}">
+                        <td><strong>{{ c.nombre_curso }}</strong></td>
+                        <td><span class="grado-badge">{{ c.grado }}</span></td>
+                        <td><span class="sec-badge">Sec. {{ c.seccion }}</span></td>
+                        <td>
+                            {% if c.docente_nombres %}
+                                {{ c.docente_nombres }} {{ c.docente_apellidos }}
+                            {% else %}
+                                <span class="sin-docente">Sin docente asignado</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="tareas-badge">{{ c.total_tareas }} tarea(s)</span></td>
+                        <td>
+                            <div class="action-group">
+                                <button type="button" class="btn-icon" title="Editar curso"
+                                        data-id="{{ c.id_curso }}"
+                                        data-nombre="{{ c.nombre_curso }}"
+                                        data-docente="{{ c.id_docente or '' }}"
+                                        onclick="abrirModalEditarCurso(this)">
+                                    <svg width="15" height="15" viewBox="0 0 24 24"
+                                         fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                                    </svg>
+                                </button>
+
+                                <form action="/eliminar-curso/{{ c.id_curso }}" method="POST"
+                                      style="display: inline;"
+                                      data-confirmacion="¿Deseas eliminar el curso {{ c.nombre_curso }} ({{ c.grado }} - Sec. {{ c.seccion }})?"
+                                      onsubmit="return confirm(this.dataset.confirmacion)">
+                                    <button type="submit" class="btn-icon delete" title="Eliminar curso">
+                                        <svg width="15" height="15" viewBox="0 0 24 24"
+                                             fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M3 6h18"/>
+                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                                        </svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 36px 20px; color: #94a3b8;">
+                            Aún no hay cursos registrados en la malla curricular.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Registro de un curso para una o varias secciones del mismo grado -->
+    <div class="form-card">
+        <h3>Registrar Nuevo Curso</h3>
+        <p>Asigna una asignatura y un docente a una o varias secciones al mismo tiempo.</p>
+
+        <form action="/crear-curso" method="POST">
+            <div class="form-field">
+                <label for="nombreCurso">Nombre del Curso</label>
+                <input type="text" id="nombreCurso" name="nombre_curso" required
+                       placeholder="Ej. Matemática, Comunicación, Inglés">
+            </div>
+
+            <div class="form-field">
+                <label for="gradoCurso">Grado</label>
+                <select id="gradoCurso" name="grado" required>
+                    <option value="">Selecciona un grado</option>
+                    {{ opciones_grado() }}
+                </select>
+            </div>
+
+            <div class="form-field">
+                <div class="sec-header-row">
+                    <label>Secciones (selección múltiple)</label>
+                    <button type="button" class="btn-select-all" onclick="alternarTodasSecciones()">
+                        Marcar / desmarcar todas
+                    </button>
+                </div>
+
+                <div class="secciones-grid">
+                    {% for seccion in secciones %}
+                        <label class="sec-check-box">
+                            <input type="checkbox" name="secciones" value="{{ seccion }}"
+                                   class="chk-seccion"{% if seccion == 'A' %} checked{% endif %}>
+                            <span class="sec-check-label">{{ seccion }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="docenteCurso">Docente a Cargo</label>
+                <select id="docenteCurso" name="id_docente" required {% if not docentes %}disabled{% endif %}>
+                    {% if docentes %}
+                        <option value="">-- Seleccionar docente --</option>
+                        {% for d in docentes %}
+                            <option value="{{ d.id_usuario }}">{{ d.apellidos }}, {{ d.nombres }}</option>
+                        {% endfor %}
+                    {% else %}
+                        <option value="">No hay docentes registrados</option>
+                    {% endif %}
+                </select>
+            </div>
+
+            <button type="submit" class="btn-submit-curso" {% if not docentes %}disabled{% endif %}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.2">
+                    <line x1="12" x2="12" y1="5" y2="19"/>
+                    <line x1="5" x2="19" y1="12" y2="12"/>
+                </svg>
+                Guardar Curso(s)
+            </button>
+
+            {% if not docentes %}
+                <p style="color: #b45309; background: #fef3c7; padding: 10px; border-radius: 8px; margin-top: 12px; margin-bottom: 0;">
+                    Registra al menos un docente en el módulo <strong>Docentes</strong> antes de crear cursos.
+                </p>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- Edición del curso correspondiente al salón seleccionado -->
+<div class="modal-backdrop" id="modalEditarCurso"
+     onclick="if (event.target === this) cerrarModalEditarCurso()">
+    <div class="modal-box">
+        <h3>Editar Curso y Docente</h3>
+
+        <form id="formEditarCurso" method="POST">
+            <div class="form-field">
+                <label for="editNombreCurso">Nombre del Curso</label>
+                <input type="text" name="nombre_curso" id="editNombreCurso" required>
+            </div>
+
+            <div class="form-field">
+                <label for="editGradoCurso">Grado</label>
+                <select name="grado" id="editGradoCurso" required>
+                    {{ opciones_grado() }}
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="editSeccionCurso">Sección</label>
+                <select name="seccion" id="editSeccionCurso" required>
+                    {{ opciones_seccion() }}
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="editDocenteCurso">Docente a Cargo</label>
+                <select name="id_docente" id="editDocenteCurso">
+                    <option value="">-- Sin asignar --</option>
+                    {% for d in docentes %}
+                        <option value="{{ d.id_usuario }}">{{ d.apellidos }}, {{ d.nombres }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" style="background: #f1f5f9; color: #334155;"
+                        onclick="cerrarModalEditarCurso()">
+                    Cancelar
+                </button>
+                <button type="submit" style="background: #0284c7; color: #ffffff;">
+                    Guardar Cambios
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function alternarTodasSecciones() {
+        const casillas = document.querySelectorAll('.chk-seccion');
+        const todasMarcadas = Array.from(casillas).every(casilla => casilla.checked);
+
+        casillas.forEach(casilla => {
+            casilla.checked = !todasMarcadas;
+        });
+    }
+
+    function filtrarTablaCursos() {
+        const texto = document.getElementById('filtroCursoTexto').value.trim().toLowerCase();
+        const grado = document.getElementById('filtroCursoGrado').value;
+        const seccion = document.getElementById('filtroCursoSeccion').value;
+        const filas = document.querySelectorAll('#tablaCursos tbody tr[data-grado]');
+
+        filas.forEach(fila => {
+            const coincideTexto = fila.textContent.toLowerCase().includes(texto);
+            const coincideGrado = !grado || fila.dataset.grado === grado;
+            const coincideSeccion = !seccion || fila.dataset.seccion === seccion;
+
+            fila.style.display = coincideTexto && coincideGrado && coincideSeccion ? '' : 'none';
+        });
+    }
+
+    function abrirModalEditarCurso(boton) {
+        const curso = boton.dataset;
+        const salon = boton.closest('tr').dataset;
+        const formulario = document.getElementById('formEditarCurso');
+
+        formulario.action = '/editar-curso/' + encodeURIComponent(curso.id);
+        formulario.elements.nombre_curso.value = curso.nombre;
+        formulario.elements.grado.value = salon.grado;
+        formulario.elements.seccion.value = salon.seccion || 'A';
+        formulario.elements.id_docente.value = curso.docente;
+
+        document.getElementById('modalEditarCurso').classList.add('open');
+    }
+
+    function cerrarModalEditarCurso() {
+        document.getElementById('modalEditarCurso').classList.remove('open');
+    }
+</script>
+{% endblock %}

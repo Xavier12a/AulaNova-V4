@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+{% block title %}Tareas y Prácticas - {{ curso.nombre_curso }} - AulaNova{% endblock %}
+{% block header_title %}Tareas: {{ curso.nombre_curso }} ({{ curso.grado }} - Sección {{ curso.seccion }}){% endblock %}
+
+{% block extra_style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tareas_docente.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="top-nav-row">
+    <a href="{{ url_for('dashboard_docente') }}" class="btn-back">← Volver a Mis Cursos</a>
+    <a href="{{ url_for('docente_curso', id_curso=curso.id_curso) }}" class="btn-grades-link">
+        Gestionar Notas del Curso
+    </a>
+</div>
+
+<div class="tareas-grid">
+    <div>
+        <h3>Tareas y prácticas — Sección {{ curso.seccion }}</h3>
+        <p>{{ tareas|length }} actividad(es)</p>
+
+        {% for t in tareas %}
+        {% set estado = 'vencida' if t.fecha_entrega < hoy else ('hoy' if t.fecha_entrega == hoy else 'activa') %}
+        {% set pct = ((t.entregadas * 100 / total)|round|int) if total else 0 %}
+
+        <article class="task-card {{ estado }}">
+            <div class="task-top">
+                <div class="task-badges">
+                    {% if estado == 'vencida' %}
+                    <span class="status-badge st-vencida">Plazo vencido</span>
+                    {% elif estado == 'hoy' %}
+                    <span class="status-badge st-hoy">Vence hoy</span>
+                    {% else %}
+                    <span class="status-badge st-activa">Activa</span>
+                    {% endif %}
+                    <span class="date-badge">Entrega límite: {{ t.fecha_entrega }}</span>
+                </div>
+                {% if t.por_calificar %}
+                <span>{{ t.por_calificar }} entrega(s) por calificar</span>
+                {% endif %}
+            </div>
+
+            <h4 class="task-title">{{ t.titulo }}</h4>
+            <p class="task-desc">{{ t.descripcion }}</p>
+
+            <form method="post" style="margin:12px 0">
+                <input type="hidden" name="accion" value="asignar_periodo">
+                <input type="hidden" name="id_tarea" value="{{ t.id_tarea }}">
+                <label for="periodo_{{ t.id_tarea }}">Bimestre de esta tarea</label>
+                <select id="periodo_{{ t.id_tarea }}" name="periodo" required>
+                    <option value="" disabled {% if not t.periodo %}selected{% endif %}>
+                        Asignar bimestre
+                    </option>
+                    {% for b in bimestres %}
+                    <option value="{{ b }}" {% if b == t.periodo %}selected{% endif %}>{{ b }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit">Guardar bimestre</button>
+            </form>
+
+            {% if t.archivo_adjunto %}
+            <a class="attachment-box" target="_blank" rel="noopener"
+               href="{{ url_for('static', filename='uploads/' + t.archivo_adjunto) }}">
+                Ver guía / material adjunto
+            </a>
+            {% endif %}
+
+            <div class="delivery-progress">
+                <div class="delivery-meta">
+                    <span>Entregas recibidas (Sec. {{ curso.seccion }})</span>
+                    <span>{{ t.entregadas }} / {{ total }} ({{ pct }}%)</span>
+                </div>
+                <div class="bar-track">
+                    <div class="bar-fill" style="width:{{ pct }}%"></div>
+                </div>
+            </div>
+
+            <div class="task-actions">
+                <a class="btn-review"
+                   href="{{ url_for('docente_ver_entregas', id_tarea=t.id_tarea) }}">
+                    Revisar y Calificar Entregas
+                </a>
+                <form method="post" action="{{ url_for('eliminar_tarea', id_tarea=t.id_tarea) }}"
+                      onsubmit="return confirm('¿Eliminar la tarea y sus entregas?');">
+                    <button class="btn-del-task" type="submit">Eliminar</button>
+                </form>
+            </div>
+        </article>
+        {% else %}
+        <div class="empty-tasks">Todavía no hay tareas o prácticas en esta sección.</div>
+        {% endfor %}
+    </div>
+
+    <aside class="publish-card">
+        <h3>Nueva tarea o práctica</h3>
+        <p>{{ curso.grado }} — Sección {{ curso.seccion }}</p>
+
+        <form method="post" enctype="multipart/form-data">
+            <div class="form-field">
+                <label for="titulo">Título de la actividad</label>
+                <input id="titulo" name="titulo" required placeholder="Ej. Práctica calificada 1">
+            </div>
+            <div class="form-field">
+                <label for="periodoNuevo">Bimestre</label>
+                <select id="periodoNuevo" name="periodo" required>
+                    <option value="" selected disabled>Seleccionar bimestre</option>
+                    {% for b in bimestres %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="descripcion">Instrucciones o descripción</label>
+                <textarea id="descripcion" name="descripcion" rows="4" required></textarea>
+            </div>
+            <div class="form-field">
+                <label for="archivo">Adjuntar archivo</label>
+                <input id="archivo" type="file" name="archivo">
+            </div>
+            <div class="form-field">
+                <label for="fechaEntrega">Fecha límite de entrega</label>
+                <input id="fechaEntrega" type="date" name="fecha_entrega" min="{{ hoy }}" required>
+            </div>
+            <button type="submit" class="btn-submit-task">Publicar actividad</button>
+        </form>
+    </aside>
+</div>
+{% endblock %}

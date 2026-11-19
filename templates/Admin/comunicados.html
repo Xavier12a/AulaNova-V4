@@ -1,0 +1,408 @@
+{% extends "layout.html" %}
+
+{% block title %}Comunicados y Mensajería - AulaNova{% endblock %}
+
+{% block header_title %}Muro de Comunicados y Mensajería{% endblock %}
+
+{% block extra_style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/comunicados.css') }}">
+
+<style>
+    .aviso-ia {
+        margin: 12px 0 16px;
+        padding: 12px;
+        border: 1px solid #c7e3f1;
+        border-radius: 12px;
+        background: #f3faff;
+    }
+
+    .aviso-ia summary {
+        color: #075985;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .aviso-ia[open] summary {
+        margin-bottom: 12px;
+    }
+
+    .aviso-ia .form-field {
+        margin-bottom: 10px;
+    }
+
+    .aviso-ia-fecha-hora {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    .aviso-ia input,
+    .aviso-ia textarea {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .btn-generar-aviso {
+        width: 100%;
+        padding: 9px 12px;
+        border: 1px solid #075985;
+        border-radius: 8px;
+        background: #075985;
+        color: white;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .btn-generar-aviso:disabled {
+        opacity: 0.55;
+        cursor: default;
+    }
+
+    .aviso-ia-estado {
+        margin: 8px 0 0;
+        font-size: 12px;
+        line-height: 1.45;
+        color: #334155;
+    }
+
+    .aviso-ia-estado[data-error="true"] {
+        color: #a33116;
+    }
+
+    .notice-body {
+        white-space: pre-line;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% set rol = session.get('id_rol') %}
+
+<div class="comunicados-grid"{% if rol == 3 %} style="grid-template-columns: 1fr;"{% endif %}>
+
+    <!-- Muro de avisos con búsqueda y filtros por categoría -->
+    <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+                Avisos Recientes del Colegio
+            </h3>
+
+            <span style="font-size: 12px; font-weight: 600; color: #0284c7; background: #f0f9ff; padding: 4px 12px; border-radius: 20px; border: 1px solid #bae6fd;">
+                {{ comunicados|length }} comunicado(s)
+            </span>
+        </div>
+
+        {% if comunicados %}
+            <div class="wall-toolbar">
+                <div class="wall-search">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="m21 21-4.3-4.3"/>
+                    </svg>
+                    <input type="text" id="buscarAviso"
+                           aria-label="Buscar avisos"
+                           placeholder="Buscar por título, mensaje o autor..."
+                           oninput="filtrarAvisos()">
+                </div>
+
+                <div class="cat-tabs">
+                    {% for valor, etiqueta in [
+                        ('ALL', 'Todos'),
+                        ('Urgente', 'Urgentes'),
+                        ('Académico', 'Académicos'),
+                        ('Reunión', 'Reuniones'),
+                        ('General', 'Generales')
+                    ] %}
+                        <button type="button"
+                                class="cat-tab{% if loop.first %} active{% endif %}"
+                                data-categoria="{{ valor }}"
+                                onclick="filtrarCategoria(this)">
+                            {{ etiqueta }}
+                        </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div id="listaComunicados">
+                {% for c in comunicados %}
+                    {% set cat = c.categoria or 'General' %}
+                    <article class="notice-card cat-{{ cat }}" data-categoria="{{ cat }}">
+                        <div class="notice-top">
+                            <div class="notice-badges">
+                                <span class="badge-cat b-{{ cat }}">{{ cat }}</span>
+                                <span class="badge-dest">
+                                    Para: {{ c.destinatario or 'Toda la Comunidad' }}
+                                </span>
+                            </div>
+
+                            {% if rol == 1 or (rol == 2 and c.id_autor == session.get('id_usuario')) %}
+                                <form action="/eliminar-comunicado/{{ c.id_comunicado }}"
+                                      method="POST"
+                                      onsubmit="return confirm('¿Deseas eliminar este comunicado del muro?');">
+                                    <button type="submit" class="btn-del-notice">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                             stroke="currentColor" stroke-width="2"
+                                             stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M3 6h18"/>
+                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                                        </svg>
+                                        Eliminar
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
+
+                        <h4 class="notice-title">{{ c.titulo }}</h4>
+                        <div class="notice-body">{{ c.mensaje }}</div>
+
+                        <div class="notice-footer">
+                            <div class="author-chip">
+                                <span class="author-avatar">{{ c.autor[:2]|upper }}</span>
+                                <span>{{ c.autor }}</span>
+                            </div>
+                            <span>Publicado el {{ c.fecha }}</span>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-wall">
+                No hay comunicados publicados en el sistema todavía.
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Dirección y docentes revisan el borrador antes de publicar. -->
+    {% if rol in [1, 2] %}
+        <aside class="publish-card">
+            <h3>Publicar Comunicado</h3>
+            <p>Elige a quién va dirigido el aviso. Puedes redactarlo o generar un borrador con IA.</p>
+
+            <form id="formComunicado" action="/comunicados" method="POST">
+                <div class="form-field">
+                    <label for="categoriaAviso">Categoría</label>
+                    <select id="categoriaAviso" name="categoria" required>
+                        <option value="">Selecciona una categoría</option>
+                        <option value="General">General</option>
+                        <option value="Urgente">Urgente</option>
+                        <option value="Académico">Académico</option>
+                        <option value="Reunión">Reunión / Evento</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label for="publicoAviso">Público destinatario</label>
+                    <select id="publicoAviso" name="destinatario" required>
+                        <option value="">Selecciona el público</option>
+                        <option value="Toda la Comunidad">Toda la Comunidad</option>
+                        <option value="Estudiantes y Familias">Estudiantes y Familias</option>
+                        {% if rol == 1 %}
+                            <option value="Solo Docentes">Solo Docentes (Interno)</option>
+                        {% endif %}
+                    </select>
+                </div>
+
+                <details class="aviso-ia" open>
+                    <summary>Redactar con IA</summary>
+
+                    <div class="form-field">
+                        <label for="motivoAviso">¿Qué necesitas comunicar?</label>
+                        <textarea id="motivoAviso" rows="3" maxlength="1500"
+                                  placeholder="Ej. Convocar a las familias para entregar las libretas del segundo bimestre."></textarea>
+                    </div>
+
+                    <div class="aviso-ia-fecha-hora">
+                        <div class="form-field">
+                            <label for="fechaAviso">Fecha (opcional)</label>
+                            <input type="date" id="fechaAviso">
+                        </div>
+                        <div class="form-field">
+                            <label for="horaAviso">Hora (opcional)</label>
+                            <input type="time" id="horaAviso">
+                        </div>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="lugarAviso">Lugar (opcional)</label>
+                        <input type="text" id="lugarAviso" maxlength="160"
+                               placeholder="Ej. Auditorio del colegio">
+                    </div>
+
+                    <button type="button" id="generarAviso" class="btn-generar-aviso"
+                            aria-describedby="estadoAviso" disabled>
+                        Generar borrador con IA
+                    </button>
+
+                    <div id="estadoAviso" class="aviso-ia-estado"
+                         role="status" aria-live="polite">
+                        Selecciona la categoría, el público y escribe el motivo.
+                    </div>
+                </details>
+
+                <div class="form-field">
+                    <label for="tituloAviso">Título del anuncio</label>
+                    <input type="text" id="tituloAviso" name="titulo" required
+                           placeholder="Ej. Entrega de libretas del segundo bimestre">
+                </div>
+
+                <div class="form-field">
+                    <label for="mensajeAviso">Mensaje o circular</label>
+                    <textarea id="mensajeAviso" name="mensaje" rows="6" required
+                              placeholder="Escribe el comunicado o revisa aquí el borrador generado."></textarea>
+                </div>
+
+                <button type="submit" id="publicarAviso" class="btn-publish">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m3 11 18-5v12L3 14v-3z"/>
+                        <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
+                    </svg>
+                    Publicar Anuncio
+                </button>
+            </form>
+        </aside>
+    {% endif %}
+</div>
+
+<script>
+    let categoriaActiva = 'ALL';
+
+    function filtrarCategoria(boton) {
+        categoriaActiva = boton.dataset.categoria;
+
+        document.querySelectorAll('.cat-tab').forEach(tab => {
+            tab.classList.toggle('active', tab === boton);
+        });
+
+        filtrarAvisos();
+    }
+
+    function filtrarAvisos() {
+        const busqueda = document.getElementById('buscarAviso').value.trim().toLowerCase();
+
+        document.querySelectorAll('.notice-card').forEach(tarjeta => {
+            const coincideCategoria = categoriaActiva === 'ALL'
+                || tarjeta.dataset.categoria === categoriaActiva;
+            const coincideTexto = tarjeta.textContent.toLowerCase().includes(busqueda);
+            tarjeta.style.display = coincideCategoria && coincideTexto ? '' : 'none';
+        });
+    }
+</script>
+
+{% if rol in [1, 2] %}
+<script>
+    (() => {
+        const formulario = document.getElementById('formComunicado');
+        const categoria = document.getElementById('categoriaAviso');
+        const publico = document.getElementById('publicoAviso');
+        const motivo = document.getElementById('motivoAviso');
+        const fecha = document.getElementById('fechaAviso');
+        const hora = document.getElementById('horaAviso');
+        const lugar = document.getElementById('lugarAviso');
+        const titulo = document.getElementById('tituloAviso');
+        const mensaje = document.getElementById('mensajeAviso');
+        const generar = document.getElementById('generarAviso');
+        const publicar = document.getElementById('publicarAviso');
+        const estado = document.getElementById('estadoAviso');
+        const camposIA = [categoria, publico, motivo, fecha, hora, lugar];
+        let generando = false;
+
+        function mostrarEstado(texto, esError = false) {
+            estado.textContent = texto;
+            estado.dataset.error = String(esError);
+        }
+
+        function datosCompletos() {
+            return Boolean(categoria.value && publico.value && motivo.value.trim());
+        }
+
+        function actualizarBoton() {
+            generar.disabled = generando || !datosCompletos();
+        }
+
+        camposIA.forEach(campo => {
+            campo.addEventListener('input', () => {
+                actualizarBoton();
+                mostrarEstado(datosCompletos()
+                    ? 'Ya puedes generar el borrador.'
+                    : 'Selecciona la categoría, el público y escribe el motivo.');
+            });
+        });
+
+        function cambiarEspera(activa) {
+            generando = activa;
+            camposIA.forEach(campo => { campo.disabled = activa; });
+            titulo.readOnly = activa;
+            mensaje.readOnly = activa;
+            publicar.disabled = activa;
+            generar.textContent = activa ? 'Generando borrador…' : 'Generar borrador con IA';
+            actualizarBoton();
+        }
+
+        formulario.addEventListener('submit', evento => {
+            if (generando) evento.preventDefault();
+        });
+
+        generar.addEventListener('click', async () => {
+            if (generando || !datosCompletos()) return;
+
+            if ((titulo.value.trim() || mensaje.value.trim())
+                && !window.confirm('¿Reemplazar el título y el mensaje actuales por un nuevo borrador?')) {
+                return;
+            }
+
+            const datos = {
+                categoria: categoria.value,
+                destinatario: publico.value,
+                motivo: motivo.value.trim(),
+                fecha: fecha.value,
+                hora: hora.value,
+                lugar: lugar.value.trim()
+            };
+
+            cambiarEspera(true);
+            mostrarEstado('Gemini está redactando el comunicado…');
+
+            try {
+                const respuesta = await fetch(
+                    {{ url_for('comunicados_ia.generar_borrador')|tojson }},
+                    {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(datos)
+                    }
+                );
+
+                const tipo = respuesta.headers.get('content-type') || '';
+                if (!tipo.includes('application/json')) {
+                    throw new Error('Recarga la página y comprueba que tu sesión siga abierta.');
+                }
+
+                const borrador = await respuesta.json();
+                if (!respuesta.ok) {
+                    throw new Error(borrador.error || 'No se pudo generar el borrador.');
+                }
+
+                titulo.value = borrador.titulo;
+                mensaje.value = borrador.mensaje;
+                mostrarEstado('Borrador listo. Revisa el título y el mensaje antes de publicar.');
+            } catch (error) {
+                mostrarEstado(error.message || 'No se pudo conectar con AulaNova.', true);
+            } finally {
+                cambiarEspera(false);
+            }
+        });
+
+        actualizarBoton();
+    })();
+</script>
+{% endif %}
+
+{% endblock %}

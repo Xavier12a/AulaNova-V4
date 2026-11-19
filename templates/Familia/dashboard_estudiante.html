@@ -1,0 +1,845 @@
+{% extends "layout.html" %}
+
+{% block title %}Portal del Estudiante - AulaNova{% endblock %}
+
+{% block header_title %}
+Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
+{% endblock %}
+
+{% block extra_style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_estudiante.css') }}">
+
+<style>
+    .buho-panel {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 30;
+        max-width: calc(100vw - 32px);
+        box-sizing: border-box;
+        color: #17324a;
+        background: #fff;
+        border: 1px solid #b9dbea;
+        border-radius: 16px;
+        box-shadow: 0 8px 30px rgba(15, 45, 70, 0.16);
+        font-size: 14px;
+        line-height: 1.45;
+        overflow: hidden;
+    }
+
+    .buho-panel[open] {
+        width: 355px;
+    }
+
+    .buho-panel summary {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 11px 14px;
+        background: #075985;
+        color: #fff;
+        font-weight: 700;
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+    }
+
+    .buho-panel summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .buho-panel summary::after {
+        content: "+";
+        margin-left: auto;
+        padding-left: 12px;
+        font-size: 18px;
+    }
+
+    .buho-panel[open] summary::after {
+        content: "−";
+    }
+
+    .buho-avatar {
+        display: inline-grid;
+        place-items: center;
+        width: 33px;
+        height: 33px;
+        flex-shrink: 0;
+        background: #e0f2fe;
+        border-radius: 50%;
+        font-size: 21px;
+    }
+
+    .buho-contenido {
+        max-height: min(65vh, 530px);
+        overflow-y: auto;
+        padding: 14px;
+    }
+
+    .buho-recordatorio {
+        padding: 10px 12px;
+        margin-bottom: 14px;
+        background: #f0f9ff;
+        border: 1px solid #d2eaf7;
+        border-radius: 10px;
+    }
+
+    .buho-recordatorio p {
+        margin: 3px 0;
+    }
+
+    .buho-recordatorio a {
+        display: inline-block;
+        margin-top: 5px;
+        color: #075985;
+        font-weight: 700;
+        text-decoration: underline;
+    }
+
+    .buho-opciones {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+
+    .buho-opciones button {
+        padding: 5px 9px;
+        border: 1px solid #c8dce8;
+        border-radius: 16px;
+        color: #075985;
+        background: white;
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .buho-opciones button:hover {
+        background: #eef8fd;
+    }
+
+    .buho-historial {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 210px;
+        overflow-y: auto;
+        overflow-wrap: anywhere;
+    }
+
+    .buho-historial:not(:empty) {
+        margin: 12px 0;
+        padding-right: 3px;
+    }
+
+    .buho-mensaje {
+        max-width: 90%;
+        box-sizing: border-box;
+        padding: 8px 11px;
+        border-radius: 12px;
+        white-space: pre-wrap;
+    }
+
+    .buho-mensaje strong {
+        display: block;
+        margin-bottom: 2px;
+        font-size: 11px;
+    }
+
+    .buho-mensaje.alumno {
+        align-self: flex-end;
+        color: #fff;
+        background: #075985;
+        border-bottom-right-radius: 3px;
+    }
+
+    .buho-mensaje.asistente {
+        align-self: flex-start;
+        background: #edf5fa;
+        border-bottom-left-radius: 3px;
+    }
+
+    .buho-mensaje.error {
+        align-self: flex-start;
+        color: #8a3414;
+        background: #fff3e8;
+    }
+
+    .buho-form label {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .buho-entrada {
+        display: flex;
+        gap: 6px;
+    }
+
+    .buho-entrada input {
+        flex: 1;
+        min-width: 0;
+        padding: 9px 10px;
+        border: 1px solid #b9cede;
+        border-radius: 9px;
+        font: inherit;
+    }
+
+    .buho-entrada button {
+        padding: 8px 12px;
+        border: 0;
+        border-radius: 9px;
+        color: white;
+        background: #075985;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .buho-panel button:disabled {
+        opacity: 0.6;
+        cursor: wait;
+    }
+
+    .buho-panel :focus-visible {
+        outline: 2px solid #0284c7;
+        outline-offset: 2px;
+    }
+
+    .buho-panel summary:focus-visible {
+        outline-offset: -3px;
+        outline-color: white;
+    }
+
+    .st-task-card:target {
+        outline: 2px solid #38bdf8;
+        outline-offset: 3px;
+        scroll-margin-top: 85px;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        .buho-avatar {
+            animation: saludo-buho 0.65s ease-in-out 3 alternate;
+        }
+
+        @keyframes saludo-buho {
+            to { transform: rotate(-10deg) translateY(-2px); }
+        }
+    }
+
+    @media (max-width: 480px) {
+        .buho-panel {
+            right: 10px;
+            bottom: 10px;
+            max-width: calc(100vw - 20px);
+        }
+
+        .buho-contenido {
+            max-height: 60vh;
+        }
+    }
+
+    @media print {
+        .buho-panel {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="student-banner">
+    <div>
+        <h2>Hola, {{ usuario.nombres }} {{ usuario.apellidos }}</h2>
+        <p>
+            Bienvenido al portal oficial de consultas de la I.E. 2060 Virgen de Guadalupe.
+            Aquí puedes revisar tus asignaturas, calificaciones bimestrales, asistencia y entregar tus tareas.
+        </p>
+    </div>
+
+    <button type="button" class="btn-print-boleta" onclick="window.print()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.2">
+            <polyline points="6 9 6 2 18 2 18 9"/>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+            <rect width="12" height="8" x="6" y="14"/>
+        </svg>
+        Imprimir Boleta
+    </button>
+</div>
+
+<!-- Resumen académico del estudiante -->
+<div class="kpi-grid-4">
+    <div class="kpi-card">
+        <div class="kpi-info">
+            <span>Promedio General</span>
+            <h3 style="color: {% if promedio_general is none %}#0f172a{% elif promedio_general < 11 %}#dc2626{% else %}#15803d{% endif %};">
+                {% if promedio_general is not none %}
+                    {{ promedio_general }} ({{ promedio_general|nota_literal }})
+                {% else %}
+                    —
+                {% endif %}
+            </h3>
+        </div>
+        <div class="kpi-icon" style="background: #dcfce7; color: #15803d;">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+                <polyline points="16 7 22 7 22 13"/>
+            </svg>
+        </div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-info">
+            <span>Asistencia</span>
+            <h3>{{ pct_asistencia }}%</h3>
+        </div>
+        <div class="kpi-icon" style="background: #e0f2fe; color: #0284c7;">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m9 11 3 3L22 4"/>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+        </div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-info">
+            <span>Tareas Pendientes</span>
+            <h3 style="color: {{ '#d97706' if tareas_pendientes > 0 else '#0f172a' }};">
+                {{ tareas_pendientes }}
+            </h3>
+        </div>
+        <div class="kpi-icon" style="background: #fef3c7; color: #b45309;">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" x2="8" y1="13" y2="13"/>
+                <line x1="16" x2="8" y1="17" y2="17"/>
+            </svg>
+        </div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-info">
+            <span>Asignaturas</span>
+            <h3>{{ cursos|length }}</h3>
+        </div>
+        <div class="kpi-icon" style="background: #f3e8ff; color: #7e22ce;">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+            </svg>
+        </div>
+    </div>
+</div>
+
+<div class="info-courses-grid">
+    <div class="card">
+        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">Datos del Estudiante</h3>
+        <div class="profile-list">
+            <div class="profile-item">
+                <span>DNI / Código</span>
+                <strong>{{ usuario.dni }}</strong>
+            </div>
+            <div class="profile-item">
+                <span>Grado y Sección</span>
+                <strong>{{ usuario.grado }} — Sección "{{ usuario.seccion }}"</strong>
+            </div>
+            <div class="profile-item">
+                <span>Correo Institucional</span>
+                <strong>{{ usuario.correo }}</strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+            Mis Asignaturas ({{ usuario.grado }} - "{{ usuario.seccion }}")
+        </h3>
+
+        {% if cursos %}
+            <div class="asignaturas-grid">
+                {% for c in cursos %}
+                    <div class="asig-box">
+                        <h4>{{ c.nombre_curso }}</h4>
+                        <p>
+                            {% if c.docente_nombres %}
+                                Prof. {{ c.docente_nombres }} {{ c.docente_apellidos }}
+                            {% else %}
+                                Docente por asignar
+                            {% endif %}
+                        </p>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p style="color: #94a3b8; font-size: 13px; margin-top: 14px;">
+                Aún no hay asignaturas asignadas para tu grado y sección.
+            </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Tareas, guías del docente y entrega de trabajos -->
+<div class="card">
+    <div style="margin-bottom: 12px;">
+        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+            Tareas, Prácticas y Entrega de Trabajos
+        </h3>
+        <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
+            Descarga la guía del docente y sube tu archivo resuelto antes de la fecha límite.
+        </p>
+    </div>
+
+    {% if tareas %}
+        <div class="tasks-list">
+            {% for t in tareas %}
+                {% set entrega = entregas_dict.get(t.id_tarea) %}
+                <article class="st-task-card" id="tarea-{{ t.id_tarea }}" tabindex="-1">
+                    <div>
+                        <div class="st-task-top">
+                            <span class="course-tag">{{ t.nombre_curso }}</span>
+
+                            {% if entrega and entrega.nota_tarea is not none %}
+                                <span class="status-tag tag-calificada">
+                                    Calificada: {{ entrega.nota_tarea }} / 20 ({{ entrega.nota_tarea|nota_literal }})
+                                </span>
+                            {% elif entrega %}
+                                <span class="status-tag tag-entregada">Entregada</span>
+                            {% elif t.fecha_entrega and t.fecha_entrega < hoy %}
+                                <span class="status-tag tag-vencida">
+                                    Plazo Vencido ({{ t.fecha_entrega }})
+                                </span>
+                            {% else %}
+                                <span class="status-tag tag-pendiente">
+                                    Entrega límite: {{ t.fecha_entrega or 'Sin fecha' }}
+                                </span>
+                            {% endif %}
+                        </div>
+
+                        <h4 class="st-task-title">{{ t.titulo }}</h4>
+                        <p class="st-task-desc">{{ t.descripcion }}</p>
+                    </div>
+
+                    {% if t.archivo_adjunto %}
+                        <a href="{{ url_for('static', filename='uploads/' + t.archivo_adjunto) }}"
+                           target="_blank" rel="noopener" class="guide-link">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="2.2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" x2="12" y1="15" y2="3"/>
+                            </svg>
+                            Descargar ficha / guía del docente
+                        </a>
+                    {% endif %}
+
+                    <div class="delivery-box">
+                        {% if entrega %}
+                            <div style="font-size: 12px; color: #0369a1; font-weight: 700;">
+                                Archivo enviado:
+                                <a href="{{ url_for('static', filename='uploads/' + entrega.archivo_alumno) }}"
+                                   target="_blank" rel="noopener"
+                                   style="color: #0284c7; text-decoration: underline;">
+                                    Ver mi entrega
+                                </a>
+                                <span style="color: #64748b; font-weight: 500;">
+                                    ({{ entrega.fecha_entrega }})
+                                </span>
+                            </div>
+                        {% else %}
+                            <div style="font-size: 12px; color: #475569; font-weight: 600;">
+                                Sube tu trabajo resuelto (PDF, Word o Imagen):
+                            </div>
+                        {% endif %}
+
+                        <form action="/estudiante/entregar-tarea/{{ t.id_tarea }}"
+                              method="POST" enctype="multipart/form-data" class="upload-row">
+                            <input type="file" name="archivo_alumno" required>
+                            <button type="submit" class="btn-send-hw">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                     stroke="currentColor" stroke-width="2.2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="17 8 12 3 7 8"/>
+                                    <line x1="12" x2="12" y1="3" y2="15"/>
+                                </svg>
+                                {% if entrega %}Actualizar envío{% else %}Enviar tarea{% endif %}
+                            </button>
+                        </form>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 30px 16px; color: #94a3b8; font-size: 13px;">
+            No hay tareas pendientes publicadas en este momento.
+        </div>
+    {% endif %}
+</div>
+
+<!-- Calificaciones bimestrales -->
+<div class="card">
+    <div style="margin-bottom: 14px;">
+        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+            Mis Calificaciones Bimestrales
+        </h3>
+        <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
+            Notas oficiales registradas en escala vigesimal (0 - 20) y equivalencia literal MINEDU.
+        </p>
+    </div>
+
+    {% if cursos %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Asignatura</th>
+                    {% for numero in range(1, 5) %}
+                        <th style="text-align: center;">Bimestre {{ numero }}</th>
+                    {% endfor %}
+                    <th style="text-align: center;">Promedio</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in cursos %}
+                    <tr>
+                        <td><strong>{{ c.nombre_curso }}</strong></td>
+                        {% for numero in range(1, 5) %}
+                            {% set n = notas_alumno.get((c.id_curso, 'Bimestre ' ~ numero)) %}
+                            <td style="text-align: center;">
+                                {% if n is not none %}
+                                    <span class="nota-pill {{ 'nota-ok' if n >= 11 else 'nota-fail' }}"
+                                          style="white-space: nowrap;">
+                                        {{ n }} ({{ n|nota_literal }})
+                                    </span>
+                                {% else %}
+                                    <span class="nota-none">—</span>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+
+                        {% set prom_c = promedios_curso.get(c.id_curso) %}
+                        <td style="text-align: center;">
+                            {% if prom_c is not none %}
+                                <span class="nota-pill {{ 'nota-ok' if prom_c >= 11 else 'nota-fail' }}"
+                                      style="white-space: nowrap;">
+                                    {{ prom_c }} ({{ prom_c|nota_literal }})
+                                </span>
+                            {% else %}
+                                <span class="nota-none">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between;">
+            <span><strong>Equivalencia MINEDU:</strong></span>
+            <span><strong>AD</strong> (18.0 – 20.0): Logro Destacado</span>
+            <span><strong>A</strong> (14.0 – 17.9): Logro Esperado</span>
+            <span><strong>B</strong> (11.0 – 13.9): En Proceso</span>
+            <span><strong>C</strong> (0.0 – 10.9): En Inicio</span>
+        </div>
+    {% else %}
+        <p style="color: #94a3b8; font-size: 13px;">No hay calificaciones registradas todavía.</p>
+    {% endif %}
+</div>
+
+<!-- Asistencia y comunicados recientes -->
+<div class="bottom-grid">
+    <div class="card">
+        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+            Control de Asistencia y Puntualidad
+        </h3>
+
+        <div class="asist-badges">
+            <span class="ab-chip" style="background: #dcfce7; color: #15803d;">
+                Presentes: {{ asist_stats.presente or 0 }}
+            </span>
+            <span class="ab-chip" style="background: #fef3c7; color: #b45309;">
+                Tardanzas: {{ asist_stats.tardanza or 0 }}
+            </span>
+            <span class="ab-chip" style="background: #fee2e2; color: #b91c1c;">
+                Faltas: {{ asist_stats.ausente or 0 }}
+            </span>
+            <span class="ab-chip" style="background: #e0f2fe; color: #0369a1;">
+                Justificadas: {{ asist_stats.justificada or 0 }}
+            </span>
+        </div>
+
+        {% if ultimas_asistencias %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                        <th>Observación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ua in ultimas_asistencias %}
+                        <tr>
+                            <td><strong>{{ ua.fecha }}</strong></td>
+                            <td>{{ ua.estado }}</td>
+                            <td style="font-size: 12px; color: #64748b;">
+                                {{ ua.observacion or '—' }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="color: #94a3b8; font-size: 13px; margin-top: 10px;">
+                Aún no hay registros de asistencia.
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">Comunicados Recientes</h3>
+            <a href="/comunicados" style="font-size: 12px; font-weight: 700; color: #0284c7; text-decoration: none;">
+                Ver todos &rarr;
+            </a>
+        </div>
+
+        {% for com in comunicados_recientes %}
+            <div class="notice-mini {{ com.categoria or 'General' }}">
+                <h4>{{ com.titulo }}</h4>
+                <p>{{ com.mensaje }}</p>
+                <small>{{ com.autor }} • {{ com.fecha }}</small>
+            </div>
+        {% else %}
+            <p style="color: #94a3b8; font-size: 13px; margin-top: 14px;">No hay comunicados publicados.</p>
+        {% endfor %}
+    </div>
+</div>
+
+{# El recordatorio y la respuesta rápida usan las mismas tareas y la misma fecha del tablero. #}
+{% set aviso = namespace(fecha=none, proximas=[], vencidas=0, sin_fecha=0) %}
+{% for tarea in tareas %}
+    {% if tarea.id_tarea not in entregas_dict %}
+        {% if not tarea.fecha_entrega %}
+            {% set aviso.sin_fecha = aviso.sin_fecha + 1 %}
+        {% elif tarea.fecha_entrega < hoy %}
+            {% set aviso.vencidas = aviso.vencidas + 1 %}
+        {% elif aviso.fecha is none or tarea.fecha_entrega < aviso.fecha %}
+            {% set aviso.fecha = tarea.fecha_entrega %}
+            {% set aviso.proximas = [tarea] %}
+        {% elif tarea.fecha_entrega == aviso.fecha %}
+            {% set aviso.proximas = aviso.proximas + [tarea] %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+
+<details class="buho-panel" id="buho-panel">
+    <summary>
+        <span class="buho-avatar" aria-hidden="true">🦉</span>
+        Asistente de AulaNova
+    </summary>
+
+    <div class="buho-contenido">
+        <div class="buho-recordatorio" id="buho-recordatorio">
+            {% if aviso.proximas %}
+                <p><strong>Próxima entrega{% if aviso.proximas|length > 1 %} ({{ aviso.proximas|length }} tareas){% endif %}</strong></p>
+
+                {% for tarea in aviso.proximas %}
+                    <p class="buho-tarea" data-titulo="{{ tarea.titulo }}" data-curso="{{ tarea.nombre_curso }}">
+                        {{ tarea.nombre_curso }} · {{ tarea.titulo }}
+                        <a href="#tarea-{{ tarea.id_tarea }}"
+                           aria-label="Ver tarea: {{ tarea.titulo }}">Ver tarea</a>
+                    </p>
+                {% endfor %}
+
+                <p>Vence: <time id="buho-plazo" datetime="{{ aviso.fecha }}">{{ aviso.fecha }}</time></p>
+            {% elif aviso.vencidas or aviso.sin_fecha %}
+                <p>No tienes entregas con un próximo vencimiento registrado.</p>
+                {% if aviso.vencidas %}
+                    <p>Tareas vencidas sin entregar: {{ aviso.vencidas }}.</p>
+                {% endif %}
+                {% if aviso.sin_fecha %}
+                    <p>Tareas sin fecha de entrega: {{ aviso.sin_fecha }}.</p>
+                {% endif %}
+            {% else %}
+                <p>No tienes tareas pendientes.</p>
+            {% endif %}
+        </div>
+
+        <div class="buho-opciones" aria-label="Preguntas frecuentes">
+            <button type="button" data-pregunta="¿Qué tarea vence primero?">
+                ¿Qué vence primero?
+            </button>
+            {% if aviso.proximas|length == 1 %}
+                {% set proxima = aviso.proximas[0] %}
+                <button type="button"
+                        data-pregunta="¿Qué pide el docente en la tarea «{{ proxima.titulo }}» de {{ proxima.nombre_curso }}?">
+                    Explícame esta tarea
+                </button>
+            {% endif %}
+        </div>
+
+        <div id="buho-historial" class="buho-historial" role="log"
+             aria-label="Conversación con el búho" aria-live="polite"></div>
+
+        <form id="buho-form" class="buho-form"
+              action="{{ url_for('chat_buho_estudiante') }}" method="POST">
+            <label for="buho-pregunta">Pregúntale al búho</label>
+            <div class="buho-entrada">
+                <input id="buho-pregunta" type="text" maxlength="600" required
+                       autocomplete="off" placeholder="Escribe tu pregunta…">
+                <button type="submit" id="buho-enviar">Enviar</button>
+            </div>
+        </form>
+    </div>
+</details>
+
+<script>
+    (() => {
+        const panel = document.getElementById('buho-panel');
+        const recordatorio = document.getElementById('buho-recordatorio');
+        const plazo = document.getElementById('buho-plazo');
+        const formulario = document.getElementById('buho-form');
+        const entrada = document.getElementById('buho-pregunta');
+        const enviar = document.getElementById('buho-enviar');
+        const historial = document.getElementById('buho-historial');
+        const opciones = panel.querySelectorAll('[data-pregunta]');
+        let turnoAnterior = null;
+
+        if (plazo) {
+            const hoy = {{ hoy|tojson }};
+            const diferencia = (Date.parse(plazo.dateTime) - Date.parse(hoy)) / 86400000;
+            const fecha = new Intl.DateTimeFormat('es-PE', {
+                day: 'numeric',
+                month: 'long',
+                timeZone: 'UTC'
+            }).format(new Date(plazo.dateTime + 'T00:00:00Z'));
+
+            if (diferencia === 0 || diferencia === 1) {
+                plazo.textContent = `${diferencia === 0 ? 'hoy' : 'mañana'}, ${fecha}`;
+                panel.open = true;
+            } else {
+                plazo.textContent = fecha;
+            }
+        }
+
+        recordatorio.querySelectorAll('a').forEach(enlace => {
+            enlace.addEventListener('click', () => {
+                panel.open = false;
+            });
+        });
+
+        function agregarMensaje(tipo, autor, texto) {
+            const burbuja = document.createElement('div');
+            burbuja.className = `buho-mensaje ${tipo}`;
+
+            const nombre = document.createElement('strong');
+            nombre.textContent = autor;
+            burbuja.append(nombre, document.createTextNode(texto));
+
+            historial.appendChild(burbuja);
+            historial.scrollTop = historial.scrollHeight;
+            return burbuja;
+        }
+
+        function respuestaDeVencimiento() {
+            if (!plazo) {
+                return Array.from(recordatorio.querySelectorAll('p'))
+                    .map(parrafo => parrafo.textContent.trim())
+                    .join(' ');
+            }
+
+            const tareas = Array.from(recordatorio.querySelectorAll('.buho-tarea'))
+                .map(elemento => `${elemento.dataset.titulo} (${elemento.dataset.curso})`);
+
+            if (tareas.length === 1) {
+                return `${tareas[0]} vence primero. La entrega es ${plazo.textContent}.`;
+            }
+
+            return `Estas tareas vencen en la misma fecha, ${plazo.textContent}: ${tareas.join('; ')}.`;
+        }
+
+        function esPreguntaDeVencimiento(pregunta) {
+            const texto = pregunta.toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[¿?¡!.]/g, '')
+                .trim();
+
+            return [
+                'que tarea vence primero',
+                'que vence primero',
+                'cual vence primero',
+                'cual es la proxima entrega',
+                'que tarea vence antes'
+            ].includes(texto);
+        }
+
+        async function preguntar(pregunta) {
+            pregunta = pregunta.trim();
+            if (!pregunta || enviar.disabled) return;
+
+            agregarMensaje('alumno', 'Tú', pregunta);
+            entrada.value = '';
+
+            // La fecha exacta proviene del tablero. Gemini atiende las preguntas abiertas.
+            if (esPreguntaDeVencimiento(pregunta)) {
+                const respuesta = respuestaDeVencimiento();
+                agregarMensaje('asistente', 'Búho de AulaNova', respuesta);
+                turnoAnterior = {pregunta, respuesta};
+                entrada.focus();
+                return;
+            }
+
+            enviar.disabled = true;
+            opciones.forEach(boton => { boton.disabled = true; });
+            const espera = agregarMensaje('asistente', 'Búho de AulaNova', 'Consultando tus tareas…');
+
+            try {
+                const respuesta = await fetch(formulario.action, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        pregunta,
+                        turno_anterior: turnoAnterior
+                    })
+                });
+
+                const tipo = respuesta.headers.get('content-type') || '';
+                if (!tipo.includes('application/json')) {
+                    throw new Error('Recarga el tablero y comprueba que tu sesión siga abierta.');
+                }
+
+                const datos = await respuesta.json();
+                if (!respuesta.ok || typeof datos.respuesta !== 'string') {
+                    throw new Error(datos.error || 'No se pudo completar la consulta.');
+                }
+
+                const texto = datos.respuesta.replace(/\*\*([^*]+)\*\*/g, '$1').trim();
+                espera.remove();
+                agregarMensaje('asistente', 'Búho de AulaNova', texto);
+                turnoAnterior = {pregunta, respuesta: texto};
+            } catch (error) {
+                espera.remove();
+                agregarMensaje('error', 'AulaNova', error.message || 'No se pudo conectar.');
+                if (!entrada.value) entrada.value = pregunta;
+            } finally {
+                enviar.disabled = false;
+                opciones.forEach(boton => { boton.disabled = false; });
+                entrada.focus();
+            }
+        }
+
+        formulario.addEventListener('submit', evento => {
+            evento.preventDefault();
+            preguntar(entrada.value);
+        });
+
+        opciones.forEach(boton => {
+            boton.addEventListener('click', () => preguntar(boton.dataset.pregunta));
+        });
+    })();
+</script>
+
+{% endblock %}

@@ -1,0 +1,297 @@
+{% extends "layout.html" %}
+
+{% block title %}Rendimiento Académico por Salón - AulaNova{% endblock %}
+
+{% block header_title %}Supervisión de Rendimiento Académico - I.E. 2060 Virgen de Guadalupe{% endblock %}
+
+{% block extra_style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/calificaciones.css') }}">
+{% endblock %}
+
+{% block content %}
+
+{# Los promedios y la tasa de aprobación usan solo las notas registradas. #}
+{% set stats = namespace(suma_notas=0, total_notas=0, aprobados=0, desaprobados=0, alumnos_riesgo=0) %}
+
+{% for a in alumnos %}
+    {% set alumno = namespace(en_riesgo=false) %}
+
+    {% for c in cursos %}
+        {% set nota = notas_dict.get((a.id_usuario, c.id_curso)) %}
+
+        {% if nota is not none %}
+            {% set stats.suma_notas = stats.suma_notas + nota %}
+            {% set stats.total_notas = stats.total_notas + 1 %}
+
+            {% if nota >= 11 %}
+                {% set stats.aprobados = stats.aprobados + 1 %}
+            {% else %}
+                {% set stats.desaprobados = stats.desaprobados + 1 %}
+                {% set alumno.en_riesgo = true %}
+            {% endif %}
+        {% endif %}
+    {% endfor %}
+
+    {% if alumno.en_riesgo %}
+        {% set stats.alumnos_riesgo = stats.alumnos_riesgo + 1 %}
+    {% endif %}
+{% endfor %}
+
+{% set prom_salon = (stats.suma_notas / stats.total_notas)|round(1) if stats.total_notas > 0 else none %}
+{% set pct_aprobacion = ((stats.aprobados / stats.total_notas) * 100)|round(0)|int if stats.total_notas > 0 else 0 %}
+{% set esperadas = (alumnos|length) * (cursos|length) %}
+
+<div class="filter-bar">
+    <form method="GET" action="/calificaciones" class="filter-controls">
+        <div class="filter-group">
+            <label for="gradoCalificaciones">Grado</label>
+            <select id="gradoCalificaciones" name="grado" onchange="this.form.submit()">
+                {% for nivel, grados in [
+                    ('Primaria', ['1ro', '2do', '3ro', '4to', '5to', '6to']),
+                    ('Secundaria', ['1ro', '2do', '3ro', '4to', '5to'])
+                ] %}
+                    <optgroup label="{{ nivel }}">
+                        {% for numero in grados %}
+                            {% set opcion = numero ~ ' de ' ~ nivel %}
+                            <option value="{{ opcion }}"{% if grado == opcion %} selected{% endif %}>
+                                {{ opcion }}
+                            </option>
+                        {% endfor %}
+                    </optgroup>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="seccionCalificaciones">Sección</label>
+            <select id="seccionCalificaciones" name="seccion" onchange="this.form.submit()">
+                {% for letra in ['A', 'B', 'C', 'D', 'E'] %}
+                    <option value="{{ letra }}"{% if seccion == letra %} selected{% endif %}>
+                        Sección {{ letra }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="periodoCalificaciones">Periodo / Bimestre</label>
+            <select id="periodoCalificaciones" name="periodo" onchange="this.form.submit()">
+                {% for numero in range(1, 5) %}
+                    {% set bimestre = 'Bimestre ' ~ numero %}
+                    <option value="{{ bimestre }}"{% if periodo == bimestre %} selected{% endif %}>
+                        {{ bimestre }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+
+    {% if alumnos and cursos %}
+        <button type="button" class="btn-export" onclick="exportarActaCSV()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" x2="12" y1="15" y2="3"/>
+            </svg>
+            Exportar Acta de Notas CSV
+        </button>
+    {% endif %}
+</div>
+
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-label">Promedio General del Salón</div>
+        <div class="kpi-value" style="color: #0284c7;">
+            {% if prom_salon is not none %}
+                {{ prom_salon }} ({{ prom_salon|nota_literal }})
+            {% else %}
+                —
+            {% endif %}
+        </div>
+        <div class="kpi-sub">{{ grado }} "{{ seccion }}" • {{ periodo }}</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-label">Tasa de Aprobación</div>
+        <div class="kpi-value" style="color: #15803d;">{{ pct_aprobacion }}%</div>
+        <div class="kpi-sub">
+            {{ stats.aprobados }} aprobadas / {{ stats.desaprobados }} desaprobadas
+        </div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-label">Alumnos en Riesgo</div>
+        <div class="kpi-value" style="color: #dc2626;">{{ stats.alumnos_riesgo }}</div>
+        <div class="kpi-sub">Con 1 o más cursos &lt; 11</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-label">Notas Reportadas</div>
+        <div class="kpi-value">{{ stats.total_notas }} / {{ esperadas }}</div>
+        <div class="kpi-sub">{{ cursos|length }} cursos asignados al grado</div>
+    </div>
+</div>
+
+<!-- Acta del salón y bimestre seleccionados -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+        <div>
+            <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+                Acta Consolidada de Calificaciones - {{ grado }} "{{ seccion }}" ({{ periodo }})
+            </h3>
+            <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                Vista de supervisión institucional. Las notas son registradas directamente por los docentes de cada asignatura.
+            </p>
+        </div>
+
+        <span style="font-size: 12px; font-weight: 600; color: #475569; background: #f1f5f9; padding: 5px 12px; border-radius: 20px;">
+            Modo Supervisión (Solo Lectura)
+        </span>
+    </div>
+
+    <div class="table-scroll">
+        <table id="tablaActaNotas"
+               data-archivo="acta_notas_{{ grado|replace(' ', '_') }}_{{ seccion }}_{{ periodo|replace(' ', '_') }}.csv">
+            <thead>
+                <tr>
+                    <th style="width: 100px;">DNI</th>
+                    <th style="min-width: 200px;">Apellidos y Nombres</th>
+
+                    {% for c in cursos %}
+                        <th style="text-align: center; min-width: 120px;"
+                            data-encabezado="{{ c.nombre_curso }}">
+                            <div>{{ c.nombre_curso }}</div>
+                            <div style="font-size: 10px; font-weight: 500; color: #94a3b8;">
+                                {{ c.docente_apellidos or 'Sin docente' }}
+                            </div>
+                        </th>
+                    {% else %}
+                        <th style="text-align: center;">Sin Cursos Registrados</th>
+                    {% endfor %}
+
+                    <th style="text-align: center;">Promedio</th>
+                    <th>Situación</th>
+                    <th style="text-align: right;">Libreta</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% if alumnos and cursos %}
+                    {% for a in alumnos %}
+                        {% set fila = namespace(suma=0, cantidad=0, desaprobados=0) %}
+
+                        <tr>
+                            <td><strong>{{ a.dni }}</strong></td>
+                            <td>{{ a.apellidos }}, {{ a.nombres }}</td>
+
+                            {% for c in cursos %}
+                                {% set nota = notas_dict.get((a.id_usuario, c.id_curso)) %}
+                                <td style="text-align: center;">
+                                    {% if nota is not none %}
+                                        {% set fila.suma = fila.suma + nota %}
+                                        {% set fila.cantidad = fila.cantidad + 1 %}
+                                        {% if nota < 11 %}
+                                            {% set fila.desaprobados = fila.desaprobados + 1 %}
+                                        {% endif %}
+                                        {% set nota_fmt = "%.1f"|format(nota) if nota % 1 != 0 else nota|int %}
+
+                                        <span class="nota-pill {{ 'nota-aprobada' if nota >= 11 else 'nota-desaprobada' }}"
+                                              style="white-space: nowrap;">
+                                            {{ nota_fmt }} ({{ nota|nota_literal }})
+                                        </span>
+                                    {% else %}
+                                        <span class="nota-pill nota-pendiente">—</span>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+
+                            <td style="text-align: center;">
+                                {% if fila.cantidad > 0 %}
+                                    {% set promedio = (fila.suma / fila.cantidad)|round(1) %}
+                                    {% set prom_fmt = "%.1f"|format(promedio) if promedio % 1 != 0 else promedio|int %}
+                                    <strong style="font-size: 14px; white-space: nowrap; color: {{ '#0f172a' if promedio >= 11 else '#dc2626' }};">
+                                        {{ prom_fmt }} ({{ promedio|nota_literal }})
+                                    </strong>
+                                {% else %}
+                                    <span style="color: #94a3b8;">—</span>
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {% if fila.cantidad == 0 %}
+                                    <span class="badge-situacion sit-empty">Sin notas</span>
+                                {% elif fila.desaprobados > 0 %}
+                                    <span class="badge-situacion sit-risk">
+                                        {{ fila.desaprobados }} desaprobado(s)
+                                    </span>
+                                {% else %}
+                                    <span class="badge-situacion sit-ok">Invicto</span>
+                                {% endif %}
+                            </td>
+
+                            <td style="text-align: right;">
+                                <a href="/libreta-academica?grado={{ grado|urlencode }}&amp;seccion={{ seccion|urlencode }}&amp;id_alumno={{ a.id_usuario }}"
+                                   style="font-size: 12px; font-weight: 600; color: #0284c7; text-decoration: none;">
+                                    Ver Boleta &rarr;
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="{{ (cursos|length if cursos else 1) + 5 }}"
+                            style="text-align: center; color: #94a3b8; padding: 32px;">
+                            {% if not cursos %}
+                                No hay cursos registrados para <strong>{{ grado }} "{{ seccion }}"</strong>.
+                                Regístralos primero en el módulo <em>Cursos y Tareas</em>.
+                            {% else %}
+                                No hay alumnos matriculados en <strong>{{ grado }} "{{ seccion }}"</strong>.
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between;">
+        <span><strong>Equivalencia MINEDU:</strong></span>
+        <span><strong>AD</strong> (18.0 – 20.0): Logro Destacado</span>
+        <span><strong>A</strong> (14.0 – 17.9): Logro Esperado</span>
+        <span><strong>B</strong> (11.0 – 13.9): En Proceso</span>
+        <span><strong>C</strong> (0.0 – 10.9): En Inicio</span>
+    </div>
+</div>
+
+<script>
+    function exportarActaCSV() {
+        const tabla = document.getElementById('tablaActaNotas');
+        const lineas = [];
+
+        for (const fila of tabla.rows) {
+            // La última columna contiene el enlace a la libreta y se excluye del acta.
+            const celdas = Array.from(fila.cells).slice(0, -1);
+            const datos = celdas.map(celda => {
+                const texto = (celda.dataset.encabezado ?? celda.textContent).replace(/\s+/g, ' ').trim();
+                return '"' + texto.replace(/"/g, '""') + '"';
+            });
+
+            lineas.push(datos.join(';'));
+        }
+
+        const blob = new Blob(['\uFEFF', lineas.join('\r\n')], {
+            type: 'text/csv;charset=utf-8;'
+        });
+
+        const url = URL.createObjectURL(blob);
+        const enlace = document.createElement('a');
+        enlace.href = url;
+        enlace.download = tabla.dataset.archivo;
+        enlace.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+</script>
+
+{% endblock %}

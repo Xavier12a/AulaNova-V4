@@ -1,0 +1,233 @@
+{% extends "layout.html" %}
+
+{% block title %}Libreta Académica Institucional - AulaNova{% endblock %}
+
+{% block header_title %}Libreta Académica Institucional{% endblock %}
+
+{% block extra_style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/libreta_academica.css') }}">
+{% endblock %}
+
+{% block content %}
+
+{% set grados_por_nivel = [
+    ('Primaria', ['1ro', '2do', '3ro', '4to', '5to', '6to']),
+    ('Secundaria', ['1ro', '2do', '3ro', '4to', '5to'])
+] %}
+{% set bimestres = ['Bimestre 1', 'Bimestre 2', 'Bimestre 3', 'Bimestre 4'] %}
+
+<!-- Al cambiar de grado o sección, se carga la lista de alumnos del nuevo salón. -->
+<div class="filter-bar no-print">
+    <form method="GET" action="/libreta-academica" class="filter-controls">
+        <div class="filter-group">
+            <label for="gradoLibreta">Grado</label>
+            <select id="gradoLibreta" name="grado" onchange="cambiarSalon(this.form)">
+                {% for nivel, grados in grados_por_nivel %}
+                    <optgroup label="{{ nivel }}">
+                        {% for numero in grados %}
+                            {% set opcion = numero ~ ' de ' ~ nivel %}
+                            <option value="{{ opcion }}"{% if grado == opcion %} selected{% endif %}>
+                                {{ opcion }}
+                            </option>
+                        {% endfor %}
+                    </optgroup>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="seccionLibreta">Sección</label>
+            <select id="seccionLibreta" name="seccion" onchange="cambiarSalon(this.form)">
+                {% for letra in ['A', 'B', 'C', 'D', 'E'] %}
+                    <option value="{{ letra }}"{% if seccion == letra %} selected{% endif %}>
+                        Sección {{ letra }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="alumnoLibreta">Seleccionar Alumno</label>
+            <select id="alumnoLibreta" name="id_alumno"
+                    onchange="this.form.submit()" style="min-width: 240px;">
+                <option value="">-- Seleccione un alumno --</option>
+                {% for a in alumnos %}
+                    <option value="{{ a.id_usuario }}"{% if (id_alumno|string) == (a.id_usuario|string) %} selected{% endif %}>
+                        {{ a.apellidos }}, {{ a.nombres }} ({{ a.dni }})
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+
+    {% if alumno_seleccionado %}
+        <button type="button" class="btn-print" onclick="window.print()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect width="12" height="8" x="6" y="14"/>
+            </svg>
+            Imprimir / Guardar PDF
+        </button>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div style="margin-bottom: 16px;">
+        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+            Reporte Oficial de Notas por Periodo
+        </h3>
+        <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
+            I.E. 2060 Virgen de Guadalupe — Calificaciones obtenidas en los cuatro bimestres del año escolar.
+        </p>
+    </div>
+
+    {% if alumno_seleccionado %}
+        {# Si la consulta del alumno omite el grado o la sección, se usa el salón seleccionado. #}
+        {% set grado_boleta = alumno_seleccionado.grado|default(grado, true) %}
+        {% set seccion_boleta = alumno_seleccionado.seccion|default(seccion, true) %}
+        {% set grado_normalizado = grado_boleta|trim|lower %}
+
+        <div class="boleta-header">
+            <div class="boleta-meta">
+                <div>
+                    <strong>Estudiante:</strong>
+                    {{ alumno_seleccionado.apellidos }}, {{ alumno_seleccionado.nombres }}
+                </div>
+                <div><strong>DNI / Código:</strong> {{ alumno_seleccionado.dni }}</div>
+            </div>
+
+            <div class="boleta-meta" style="text-align: right;">
+                <div>
+                    <strong>Nivel:</strong>
+                    {% if grado_normalizado.endswith('primaria') %}
+                        Educación Primaria
+                    {% elif grado_normalizado.endswith('secundaria') %}
+                        Educación Secundaria
+                    {% else %}
+                        Sin especificar
+                    {% endif %}
+                </div>
+                <div><strong>Grado y Sección:</strong> {{ grado_boleta }} "{{ seccion_boleta }}"</div>
+            </div>
+        </div>
+    {% endif %}
+
+    <table>
+        <thead>
+            <tr>
+                <th>Asignatura / Curso</th>
+                {% for bimestre in bimestres %}
+                    <th style="text-align: center;">{{ bimestre }}</th>
+                {% endfor %}
+                <th style="text-align: center;">Promedio Anual</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% if alumno_seleccionado and cursos %}
+                {# Cada curso se promedia con sus bimestres registrados. Una nota de cero sí cuenta. #}
+                {% set general = namespace(suma=0, cont=0) %}
+
+                {% for c in cursos %}
+                    {% set cur = namespace(suma=0, cont=0) %}
+
+                    <tr>
+                        <td>
+                            <strong>{{ c.nombre_curso }}</strong>
+                            <div style="font-size: 11px; color: #64748b;">
+                                Docente: {{ c.docente_nombres ~ ' ' ~ c.docente_apellidos if c.docente_nombres else 'Por asignar' }}
+                            </div>
+                        </td>
+
+                        {% for bimestre in bimestres %}
+                            {% set nota = notas_alumno.get((c.id_curso, bimestre)) %}
+
+                            <td style="text-align: center;">
+                                {% if nota is not none %}
+                                    {% set cur.suma = cur.suma + nota %}
+                                    {% set cur.cont = cur.cont + 1 %}
+                                    {% set nota_fmt = "%.1f"|format(nota) if nota % 1 != 0 else nota|int %}
+
+                                    <span class="nota-pill {{ 'nota-aprobada' if nota >= 11 else 'nota-desaprobada' }}"
+                                          style="white-space: nowrap;">
+                                        {{ nota_fmt }} ({{ nota|nota_literal }})
+                                    </span>
+                                {% else %}
+                                    <span class="nota-pill nota-pendiente">—</span>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+
+                        <td style="text-align: center;">
+                            {% if cur.cont > 0 %}
+                                {% set prom_curso = (cur.suma / cur.cont)|round(1) %}
+                                {% set general.suma = general.suma + prom_curso %}
+                                {% set general.cont = general.cont + 1 %}
+                                {% set prom_fmt = "%.1f"|format(prom_curso) if prom_curso % 1 != 0 else prom_curso|int %}
+
+                                <span class="nota-pill {{ 'nota-aprobada' if prom_curso >= 11 else 'nota-desaprobada' }}"
+                                      style="white-space: nowrap;">
+                                    {{ prom_fmt }} ({{ prom_curso|nota_literal }})
+                                </span>
+                            {% else %}
+                                <span class="nota-pill nota-pendiente">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+
+                <tr style="background: #f8fafc;">
+                    <td colspan="5" style="text-align: right; font-weight: 700; color: #0f172a;">
+                        Promedio Ponderado General:
+                    </td>
+                    <td style="text-align: center;">
+                        {% if general.cont > 0 %}
+                            {% set prom_final = (general.suma / general.cont)|round(1) %}
+                            {% set final_fmt = "%.1f"|format(prom_final) if prom_final % 1 != 0 else prom_final|int %}
+                            <strong style="font-size: 15px; white-space: nowrap; color: {{ '#15803d' if prom_final >= 11 else '#dc2626' }};">
+                                {{ final_fmt }} ({{ prom_final|nota_literal }})
+                            </strong>
+                        {% else %}
+                            <span style="color: #94a3b8;">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+
+            {% elif alumno_seleccionado %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #94a3b8; padding: 30px;">
+                        No hay cursos registrados para {{ grado_boleta }} "{{ seccion_boleta }}".
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #94a3b8; padding: 34px;">
+                        Selecciona un alumno para visualizar su libreta académica detallada.
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    {% if alumno_seleccionado %}
+        <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between;">
+            <span><strong>Equivalencia MINEDU:</strong></span>
+            <span><strong>AD</strong> (18.0 – 20.0): Logro Destacado</span>
+            <span><strong>A</strong> (14.0 – 17.9): Logro Esperado</span>
+            <span><strong>B</strong> (11.0 – 13.9): En Proceso</span>
+            <span><strong>C</strong> (0.0 – 10.9): En Inicio</span>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+    function cambiarSalon(formulario) {
+        formulario.elements.id_alumno.value = '';
+        formulario.submit();
+    }
+</script>
+
+{% endblock %}

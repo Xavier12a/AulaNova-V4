@@ -1,0 +1,110 @@
+.filter-bar {
+    background: #ffffff;
+    padding: 16px 24px;
+    border-radius: 14px;
+    border: 1.5px solid #e2e8f0;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.filter-group label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+}
+.filter-group select, .filter-group input {
+    padding: 8px 12px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 13px;
+    background: #f8fafc;
+}
+
+/* Píldoras horizontales de asistencia */
+.attendance-pills {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.pill-radio {
+    display: none;
+}
+.pill-label {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1.5px solid #e2e8f0;
+    background: #f8fafc;
+    color: #64748b;
+    transition: all 0.15s ease;
+}
+.pill-label:hover {
+    border-color: #cbd5e1;
+    background: #f1f5f9;
+}
+
+/* Colores activos para cada estado */
+#r_presente:checked ~ .p-pres,
+input[id^="pres_"]:checked + label { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+
+#r_tardanza:checked ~ .p-tar,
+input[id^="tar_"]:checked + label { background: #fef9c3; color: #a16207; border-color: #fde047; }
+
+#r_ausente:checked ~ .p-aus,
+input[id^="aus_"]:checked + label { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+
+#r_tj:checked ~ .p-tj,
+input[id^="tj_"]:checked + label { background: #e0f2fe; color: #0369a1; border-color: #bae6fd; }
+
+#r_fj:checked ~ .p-fj,
+input[id^="fj_"]:checked + label { background: #f3e8ff; color: #6b21a8; border-color: #e9d5ff; }
+
+.bulk-bar {
+    background: #f8fafc;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.bulk-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+}
+.btn-bulk {
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1.5px solid #cbd5e1;
+    background: #ffffff;
+    cursor: pointer;
+    transition: all 0.1s;
+}
+.btn-bulk:hover { background: #f1f5f9; }
+
+.obs-input {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 12px;
+    background: #f8fafc;
+}
+.obs-input:focus { border-color: #0284c7; background: #ffffff; outline: none; }

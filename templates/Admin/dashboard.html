@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+
+{% block title %}Tablero Principal - AulaNova{% endblock %}
+
+{% block header_title %}Tablero Principal - I.E. 2060 Virgen de Guadalupe{% endblock %}
+
+{% block extra_style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="welcome-banner">
+    <div>
+        <h2>Bienvenido, {{ usuario.nombres }} {{ usuario.apellidos }}</h2>
+        <p>Panel de Dirección y Supervisión Institucional — I.E. 2060 Virgen de Guadalupe. Monitorea matrículas, asistencia diaria y rendimiento académico.</p>
+    </div>
+
+    <div class="dev-tools">
+        <form action="/admin/cargar-datos-prueba" method="POST" onsubmit="return confirm('¿Deseas insertar datos de prueba (docentes, alumnos, cursos, asistencias, notas y comunicados)?');">
+            <button type="submit" class="btn-seed" title="Insertar registros de prueba para demostración">
+                <!-- Ícono de escarabajo (Bug) -->
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/>
+                    <path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/>
+                    <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/>
+                    <path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/>
+                    <path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/>
+                    <path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/>
+                    <path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/>
+                </svg>
+                Cargar Datos de Prueba
+            </button>
+        </form>
+
+        <button type="button" class="btn-reset-seed" onclick="abrirModalVaciar()" title="Vaciar todos los datos excepto el Administrador">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+            </svg>
+            Vaciar Todo
+        </button>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-info">
+            <span>Alumnos Matriculados</span>
+            <h3>{{ total_alumnos }}</h3>
+        </div>
+        <div class="stat-icon" style="background: #e0f2fe; color: #0284c7;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-info">
+            <span>Plana Docente</span>
+            <h3>{{ total_docentes }}</h3>
+        </div>
+        <div class="stat-icon" style="background: #dcfce7; color: #15803d;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-info">
+            <span>Cursos Activos</span>
+            <h3>{{ total_cursos }}</h3>
+        </div>
+        <div class="stat-icon" style="background: #fef3c7; color: #b45309;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 14px;">Accesos Directos de Supervisión</h3>
+    <div class="quick-grid">
+        <a href="/alumnos" class="quick-card">
+            <strong>Gestionar Alumnos</strong>
+            <span>Matrícula individual e importación CSV</span>
+        </a>
+        <a href="/reporte-asistencia" class="quick-card">
+            <strong>Reportes de Asistencia</strong>
+            <span>Consolidado por aula y auditoría diaria</span>
+        </a>
+        <a href="/calificaciones" class="quick-card">
+            <strong>Rendimiento por Salón</strong>
+            <span>Actas bimestrales y alumnos en riesgo</span>
+        </a>
+        <a href="/libreta-academica" class="quick-card">
+            <strong>Libreta Académica</strong>
+            <span>Boleta oficial de notas e impresión PDF</span>
+        </a>
+    </div>
+</div>
+
+<!-- Modal de Confirmación con Contraseña -->
+<div class="modal-backdrop" id="modalVaciar" onclick="if(event.target === this) cerrarModalVaciar()">
+    <div class="modal-box">
+        <h3>Confirmar Reinicio de Base de Datos</h3>
+        <p>Esta acción eliminará <strong>todos</strong> los alumnos, docentes, cursos, tareas, asistencias, calificaciones y comunicados. Tu cuenta de <strong>Administrador</strong> se mantendrá intacta.</p>
+        <form action="/admin/limpiar-datos-prueba" method="POST">
+            <label style="display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 6px;">
+                Ingresa la contraseña de seguridad para confirmar:
+            </label>
+            <input type="password" name="clave_confirmacion" id="inputClaveVaciar" required placeholder="Contraseña de confirmación">
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="cerrarModalVaciar()">Cancelar</button>
+                <button type="submit" class="btn-danger-confirm">Sí, Vaciar Todo</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function abrirModalVaciar() {
+        document.getElementById('modalVaciar').classList.add('open');
+        setTimeout(() => document.getElementById('inputClaveVaciar').focus(), 50);
+    }
+    function cerrarModalVaciar() {
+        document.getElementById('modalVaciar').classList.remove('open');
+        document.getElementById('inputClaveVaciar').value = '';
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,116 @@
+.top-nav-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.btn-back {
+    background: #ffffff;
+    color: #334155;
+    border: 1.5px solid #cbd5e1;
+    text-decoration: none;
+    padding: 8px 14px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.15s;
+}
+.btn-back:hover { background: #f8fafc; border-color: #94a3b8; color: #0f172a; }
+
+.btn-tasks-link {
+    background: #0d9488;
+    color: #ffffff;
+    text-decoration: none;
+    padding: 8px 15px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+.btn-tasks-link:hover { background: #0f766e; }
+
+.filter-bar {
+    background: #ffffff;
+    padding: 16px 24px;
+    border-radius: 14px;
+    border: 1.5px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.filter-group label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+}
+.filter-group select {
+    padding: 8px 12px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 13px;
+    background: #f8fafc;
+    min-width: 170px;
+}
+
+.summary-chips {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.chip-stat {
+    padding: 7px 13px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+}
+
+.nota-input {
+    width: 92px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 7px 10px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+}
+.nota-input:focus { border-color: #0284c7; background: #f0f9ff; }
+
+.estado-pill {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.est-aprobado    { background: #dcfce7; color: #15803d; }
+.est-desaprobado { background: #fee2e2; color: #b91c1c; }
+.est-pendiente   { background: #f1f5f9; color: #64748b; }
+
+.btn-save {
+    background: #0f172a;
+    color: #ffffff;
+    padding: 11px 22px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}

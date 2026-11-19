@@ -1,0 +1,140 @@
+{% extends "layout.html" %}
+
+{% block title %}Portal del Docente - AulaNova{% endblock %}
+
+{% block header_title %}Portal del Docente - I.E. 2060 Virgen de Guadalupe{% endblock %}
+
+{% block extra_style %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_docente.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="docente-banner">
+    <div>
+        <h2>Bienvenido(a), Prof. {{ usuario.nombres }} {{ usuario.apellidos }}</h2>
+        <p>Desde este panel puedes registrar calificaciones oficiales, publicar tareas o materiales y controlar la asistencia diaria por grado y sección.</p>
+    </div>
+    <a href="/asistencia" class="btn-banner-asistencia">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
+        Tomar Asistencia Hoy
+    </a>
+</div>
+
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-info">
+            <span>Salones / Cursos Asignados</span>
+            <h3>{{ cursos|length }}</h3>
+        </div>
+        <div class="kpi-icon" style="background: #e0f2fe; color: #0284c7;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        </div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-info">
+            <span>Estudiantes Atendidos</span>
+            <h3>{{ total_estudiantes }}</h3>
+        </div>
+        <div class="kpi-icon" style="background: #dcfce7; color: #15803d;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+        </div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-info">
+            <span>Entregas por Calificar</span>
+            <h3 style="color: {% if total_entregas_pendientes > 0 %}#d97706{% else %}#0f172a{% endif %};">
+                {{ total_entregas_pendientes }}
+            </h3>
+        </div>
+        <div class="kpi-icon" style="background: #fef3c7; color: #b45309;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/></svg>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div>
+        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">Mis Cursos Asignados</h3>
+        <p style="font-size: 12px; color: #64748b; margin-top: 2px;">Cada tarjeta corresponde a un salón específico (Grado y Sección) a tu cargo.</p>
+    </div>
+
+    {% if cursos %}
+    <div class="courses-grid">
+        {% for c in cursos %}
+        <div class="course-card">
+            <div>
+                <div class="course-header">
+                    <span class="course-grade-badge">{{ c.grado }}</span>
+                    <span class="course-sec-badge">Sección {{ c.seccion }}</span>
+                </div>
+                <h4 class="course-title">{{ c.nombre_curso }}</h4>
+                <p class="course-sub">Docente titular: {{ usuario.nombres }} {{ usuario.apellidos }}</p>
+            </div>
+
+            <div class="course-metrics">
+                <div class="metric-item">
+                    <strong>{{ c.total_alumnos }}</strong>
+                    <span>Alumnos</span>
+                </div>
+                <div class="metric-item">
+                    <strong>{{ c.total_tareas }}</strong>
+                    <span>Tareas</span>
+                </div>
+                <div class="metric-item">
+                    <strong style="color: {% if c.pendientes > 0 %}#d97706{% else %}#15803d{% endif %};">{{ c.pendientes }}</strong>
+                    <span>Por revisar</span>
+                </div>
+            </div>
+
+            <div class="progress-wrap">
+                <div class="progress-label">
+                    <span>Avance notas (Bimestre 1)</span>
+                    <span>{{ c.notas_b1 }} / {{ c.total_alumnos }} ({{ c.pct_notas }}%)</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ c.pct_notas }}%;"></div>
+                </div>
+            </div>
+
+            <div class="course-actions">
+                <a href="/docente/curso/{{ c.id_curso }}" class="btn-course btn-notas">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                    Gestionar Notas
+                </a>
+                <a href="/docente/curso/{{ c.id_curso }}/tareas" class="btn-course btn-tareas">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    Tareas
+                </a>
+                <a href="/asistencia?grado={{ c.grado }}&seccion={{ c.seccion }}" class="btn-course btn-asist">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                    Asistencia
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 36px 20px; color: #94a3b8; font-size: 14px;">
+        Aún no tienes asignaturas asignadas por la Dirección.
+    </div>
+    {% endif %}
+</div>
+
+{% if comunicados_recientes %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">Avisos Recientes de Dirección</h3>
+        <a href="/comunicados" style="font-size: 12px; font-weight: 700; color: #0284c7; text-decoration: none;">Ver muro completo &rarr;</a>
+    </div>
+    {% for com in comunicados_recientes %}
+    <div class="notice-mini {{ com.categoria or 'General' }}">
+        <h4>{{ com.titulo }}</h4>
+        <p>{{ com.mensaje }}</p>
+        <small>{{ com.autor }} • {{ com.fecha }}</small>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
