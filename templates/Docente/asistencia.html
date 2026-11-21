@@ -10,176 +10,165 @@
 
 {% block content %}
 
-<!-- Selección del salón y la fecha de asistencia -->
-<form method="GET" action="/asistencia" class="filter-bar">
-    <div class="filter-group">
-        <label for="gradoAsistencia">Grado</label>
-        <select id="gradoAsistencia" name="grado" onchange="this.form.submit()">
-            {% for nivel, grados in [
-                ('Primaria', ['1ro', '2do', '3ro', '4to', '5to', '6to']),
-                ('Secundaria', ['1ro', '2do', '3ro', '4to', '5to'])
-            ] %}
-                <optgroup label="{{ nivel }}">
-                    {% for numero in grados %}
-                        {% set opcion = numero ~ ' de ' ~ nivel %}
-                        <option value="{{ opcion }}"{% if grado == opcion %} selected{% endif %}>
-                            {{ opcion }}
-                        </option>
-                    {% endfor %}
-                </optgroup>
-            {% endfor %}
-        </select>
-    </div>
-
-    <div class="filter-group">
-        <label for="seccionAsistencia">Sección</label>
-        <select id="seccionAsistencia" name="seccion" onchange="this.form.submit()">
-            {% for letra in ['A', 'B', 'C', 'D', 'E'] %}
-                <option value="{{ letra }}"{% if seccion == letra %} selected{% endif %}>
-                    Sección {{ letra }}
-                </option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <div class="filter-group">
-        <label for="fechaAsistencia">Fecha de Registro</label>
-        <input type="date" id="fechaAsistencia" name="fecha"
-               value="{{ fecha }}" onchange="this.form.submit()">
-    </div>
-</form>
-
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-        <div>
-            <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
-                Registro Diario de Asistencia - {{ grado }} "{{ seccion }}"
-            </h3>
-            <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
-                Selecciona el estado correspondiente para cada estudiante y añade observaciones opcionales.
-            </p>
-        </div>
-
-        <span style="font-size: 12px; font-weight: 600; color: #0284c7; background: #f0f9ff; padding: 5px 12px; border-radius: 20px; border: 1.5px solid #bae6fd;">
-            {{ alumnos|length }} estudiantes listados
-        </span>
-    </div>
-
-    <!-- Marcado rápido para todos los estudiantes del salón -->
-    <div class="bulk-bar">
-        <span class="bulk-label">Acciones rápidas para todo el salón:</span>
-
-        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-            <button type="button" class="btn-bulk" onclick="marcarTodos('Presente')"
-                    style="color: #15803d; border-color: #bbf7d0; background: #dcfce7;">
-                Marcar Todos Presente
-            </button>
-
-            <button type="button" class="btn-bulk" onclick="marcarTodos('Tardanza')"
-                    style="color: #a16207; border-color: #fde047; background: #fef9c3;">
-                Marcar Todos Tardanza
-            </button>
-
-            <button type="button" class="btn-bulk" onclick="marcarTodos('Ausente')"
-                    style="color: #b91c1c; border-color: #fecaca; background: #fee2e2;">
-                Marcar Todos Ausente
-            </button>
-        </div>
-    </div>
-
-    <form id="formAsistencia" action="/guardar-asistencia" method="POST">
-        <input type="hidden" name="grado" value="{{ grado }}">
-        <input type="hidden" name="seccion" value="{{ seccion }}">
-        <input type="hidden" name="fecha" value="{{ fecha }}">
-
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 110px;">DNI</th>
-                    <th>Apellidos y Nombres</th>
-                    <th style="width: 320px;">Estado de Asistencia</th>
-                    <th>Observaciones</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                {% for a in alumnos %}
-                    {% set estado_actual = a.estado_asistencia or 'Presente' %}
-                    <tr>
-                        <td><strong>{{ a.dni }}</strong></td>
-                        <td>{{ a.apellidos }}, {{ a.nombres }}</td>
-
-                        <td>
-                            <div class="attendance-pills">
-                                <input type="radio" id="pres_{{ a.id_usuario }}"
-                                       name="estado_{{ a.id_usuario }}" value="Presente"
-                                       class="pill-radio"{% if estado_actual == 'Presente' %} checked{% endif %}>
-                                <label for="pres_{{ a.id_usuario }}" class="pill-label p-pres">
-                                    Presente (A)
-                                </label>
-
-                                <input type="radio" id="tar_{{ a.id_usuario }}"
-                                       name="estado_{{ a.id_usuario }}" value="Tardanza"
-                                       class="pill-radio"{% if estado_actual == 'Tardanza' %} checked{% endif %}>
-                                <label for="tar_{{ a.id_usuario }}" class="pill-label p-tar">
-                                    Tardanza (T)
-                                </label>
-
-                                <input type="radio" id="aus_{{ a.id_usuario }}"
-                                       name="estado_{{ a.id_usuario }}" value="Ausente"
-                                       class="pill-radio"{% if estado_actual == 'Ausente' %} checked{% endif %}>
-                                <label for="aus_{{ a.id_usuario }}" class="pill-label p-aus">
-                                    Ausente (F)
-                                </label>
-
-                                <input type="radio" id="tj_{{ a.id_usuario }}"
-                                       name="estado_{{ a.id_usuario }}" value="Tardanza Justificada"
-                                       class="pill-radio"{% if estado_actual == 'Tardanza Justificada' %} checked{% endif %}>
-                                <label for="tj_{{ a.id_usuario }}" class="pill-label p-tj">
-                                    Tard. Just. (TJ)
-                                </label>
-
-                                <input type="radio" id="fj_{{ a.id_usuario }}"
-                                       name="estado_{{ a.id_usuario }}" value="Falta Justificada"
-                                       class="pill-radio"{% if estado_actual == 'Falta Justificada' %} checked{% endif %}>
-                                <label for="fj_{{ a.id_usuario }}" class="pill-label p-fj">
-                                    Falta Just. (FJ)
-                                </label>
-                            </div>
-                        </td>
-
-                        <td>
-                            <input type="text" name="observacion_{{ a.id_usuario }}"
-                                   class="obs-input" value="{{ a.observacion_asistencia or '' }}"
-                                   placeholder="Ej. Permiso médico / Llegada tarde con justificativo">
-                        </td>
-                    </tr>
-                {% else %}
-                    <tr>
-                        <td colspan="4" style="text-align: center; color: #94a3b8; padding: 30px;">
-                            No hay alumnos matriculados en este grado y sección.
-                        </td>
-                    </tr>
+{% if cursos_docente and curso_activo %}
+    <!-- Filtros para elegir el curso del docente y la fecha a registrar -->
+    <form method="GET" action="/asistencia" class="filter-bar">
+        <div class="filter-group" style="min-width: 280px;">
+            <label for="cursoAsistencia">Curso y Salón Asignado</label>
+            <select id="cursoAsistencia" name="id_curso" onchange="this.form.submit()">
+                {% for c in cursos_docente %}
+                    <option value="{{ c.id_curso }}"{% if c.id_curso == curso_activo.id_curso %} selected{% endif %}>
+                        {{ c.nombre_curso }} — {{ c.grado }} "{{ c.seccion }}"
+                    </option>
                 {% endfor %}
-            </tbody>
-        </table>
+            </select>
+        </div>
 
-        <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
-            <button type="submit" style="display: flex; align-items: center; gap: 8px; padding: 11px 24px;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                    <polyline points="17 21 17 13 7 13 7 21"/>
-                    <polyline points="7 3 7 8 15 8"/>
-                </svg>
-                Guardar Registro de Asistencia
-            </button>
+        <div class="filter-group">
+            <label for="fechaAsistencia">Fecha de Registro</label>
+            <input type="date" id="fechaAsistencia" name="fecha"
+                   value="{{ fecha }}" onchange="this.form.submit()">
         </div>
     </form>
-</div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+                    Asistencia: {{ curso_activo.nombre_curso }} — {{ curso_activo.grado }} "{{ curso_activo.seccion }}"
+                </h3>
+                <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                    Selecciona el estado correspondiente para cada estudiante de este curso y añade observaciones opcionales.
+                </p>
+            </div>
+
+            <span style="font-size: 12px; font-weight: 600; color: #0284c7; background: #f0f9ff; padding: 5px 12px; border-radius: 20px; border: 1.5px solid #bae6fd;">
+                {{ alumnos|length }} estudiantes listados
+            </span>
+        </div>
+
+        <!-- Botones para aplicar un mismo estado a toda la lista de una sola vez -->
+        <div class="bulk-bar">
+            <span class="bulk-label">Acciones rápidas para todo el curso:</span>
+
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button type="button" class="btn-bulk" onclick="marcarTodos('Presente')"
+                        style="color: #15803d; border-color: #bbf7d0; background: #dcfce7;">
+                    Marcar Todos Presente
+                </button>
+
+                <button type="button" class="btn-bulk" onclick="marcarTodos('Tardanza')"
+                        style="color: #a16207; border-color: #fde047; background: #fef9c3;">
+                    Marcar Todos Tardanza
+                </button>
+
+                <button type="button" class="btn-bulk" onclick="marcarTodos('Ausente')"
+                        style="color: #b91c1c; border-color: #fecaca; background: #fee2e2;">
+                    Marcar Todos Ausente
+                </button>
+            </div>
+        </div>
+
+        <!-- Formulario masivo de toma de asistencia por alumno -->
+        <form id="formAsistencia" action="/guardar-asistencia" method="POST">
+            <input type="hidden" name="id_curso" value="{{ curso_activo.id_curso }}">
+            <input type="hidden" name="fecha" value="{{ fecha }}">
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 110px;">DNI</th>
+                        <th>Apellidos y Nombres</th>
+                        <th style="width: 320px;">Estado de Asistencia</th>
+                        <th>Observaciones</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for a in alumnos %}
+                        {# Si aún no hay registro en esa fecha, se preselecciona Presente #}
+                        {% set estado_actual = a.estado_asistencia or 'Presente' %}
+                        <tr>
+                            <td><strong>{{ a.dni }}</strong></td>
+                            <td>{{ a.apellidos }}, {{ a.nombres }}</td>
+
+                            <td>
+                                <div class="attendance-pills">
+                                    <input type="radio" id="pres_{{ a.id_usuario }}"
+                                           name="estado_{{ a.id_usuario }}" value="Presente"
+                                           class="pill-radio"{% if estado_actual == 'Presente' %} checked{% endif %}>
+                                    <label for="pres_{{ a.id_usuario }}" class="pill-label p-pres">
+                                        Presente (A)
+                                    </label>
+
+                                    <input type="radio" id="tar_{{ a.id_usuario }}"
+                                           name="estado_{{ a.id_usuario }}" value="Tardanza"
+                                           class="pill-radio"{% if estado_actual == 'Tardanza' %} checked{% endif %}>
+                                    <label for="tar_{{ a.id_usuario }}" class="pill-label p-tar">
+                                        Tardanza (T)
+                                    </label>
+
+                                    <input type="radio" id="aus_{{ a.id_usuario }}"
+                                           name="estado_{{ a.id_usuario }}" value="Ausente"
+                                           class="pill-radio"{% if estado_actual == 'Ausente' %} checked{% endif %}>
+                                    <label for="aus_{{ a.id_usuario }}" class="pill-label p-aus">
+                                        Ausente (F)
+                                    </label>
+
+                                    <input type="radio" id="tj_{{ a.id_usuario }}"
+                                           name="estado_{{ a.id_usuario }}" value="Tardanza Justificada"
+                                           class="pill-radio"{% if estado_actual == 'Tardanza Justificada' %} checked{% endif %}>
+                                    <label for="tj_{{ a.id_usuario }}" class="pill-label p-tj">
+                                        Tard. Just. (TJ)
+                                    </label>
+
+                                    <input type="radio" id="fj_{{ a.id_usuario }}"
+                                           name="estado_{{ a.id_usuario }}" value="Falta Justificada"
+                                           class="pill-radio"{% if estado_actual == 'Falta Justificada' %} checked{% endif %}>
+                                    <label for="fj_{{ a.id_usuario }}" class="pill-label p-fj">
+                                        Falta Just. (FJ)
+                                    </label>
+                                </div>
+                            </td>
+
+                            <td>
+                                <input type="text" name="observacion_{{ a.id_usuario }}"
+                                       class="obs-input" value="{{ a.observacion_asistencia or '' }}"
+                                       placeholder="Ej. Permiso médico / Llegada tarde con justificativo">
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: #94a3b8; padding: 30px;">
+                                No hay alumnos matriculados en este curso.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
+                <button type="submit" style="display: flex; align-items: center; gap: 8px; padding: 11px 24px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                        <polyline points="17 21 17 13 7 13 7 21"/>
+                        <polyline points="7 3 7 8 15 8"/>
+                    </svg>
+                    Guardar Asistencia del Curso
+                </button>
+            </div>
+        </form>
+    </div>
+{% else %}
+    <div class="card" style="text-align: center; padding: 32px 20px; color: #64748b;">
+        Aún no tienes cursos asignados para registrar asistencia.
+    </div>
+{% endif %}
 
 <script>
+    // Selecciona el radio button del estado indicado en todas las filas del formulario
     function marcarTodos(estado) {
         const radios = document.querySelectorAll('#formAsistencia .pill-radio');
 

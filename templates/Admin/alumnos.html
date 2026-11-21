@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/alumnos.css') }}">
 {% endblock %}
 
-{# Los filtros, el registro y la edición comparten las mismas opciones de matrícula. #}
+{# Macros reutilizables para grados y secciones en filtros, registro y edición #}
 {% macro opciones_grado(seleccionado='') %}
     {% for nivel, grados in [
         ('Primaria', ['1ro', '2do', '3ro', '4to', '5to', '6to']),
@@ -36,7 +36,7 @@
 
 {% block content %}
 
-<!-- Carga masiva de alumnos mediante archivo CSV -->
+<!-- Descarga de plantilla e importación masiva por CSV -->
 <div class="mass-bar">
     <div class="mass-title">
         <h3>Acciones Masivas de Matrícula</h3>
@@ -73,7 +73,7 @@
     </div>
 </div>
 
-<!-- Búsqueda y filtros de matrícula -->
+<!-- Filtros de búsqueda por texto, grado y sección -->
 <div class="action-bar">
     <form method="GET" action="/alumnos" class="filter-form">
         <div class="search-wrapper">
@@ -106,6 +106,7 @@
 </div>
 
 <div class="grid-alumnos">
+    <!-- Tabla principal de alumnos matriculados -->
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
@@ -137,6 +138,7 @@
                         <td><span class="badge-matriculado">Matriculado</span></td>
                         <td>
                             <div class="actions-cell">
+                                <!-- Los data-* pasan los datos del alumno al modal de edición -->
                                 <button type="button" class="btn-icon" title="Editar alumno"
                                         data-id="{{ a.id_usuario }}"
                                         data-nombres="{{ a.nombres }}"
@@ -180,7 +182,7 @@
         </table>
     </div>
 
-    <!-- Registro de un nuevo alumno -->
+    <!-- Formulario de matrícula individual -->
     <div class="card">
         <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 12px;">
             Registrar Nuevo Alumno
@@ -255,7 +257,7 @@
     </div>
 </div>
 
-<!-- Edición de los datos y la matrícula del alumno seleccionado -->
+<!-- Modal para editar datos del alumno seleccionado -->
 <div class="modal-backdrop" id="modalEditar">
     <div class="modal-box">
         <div class="modal-header">
@@ -315,6 +317,7 @@
 </div>
 
 <script>
+    // Rellena el formulario del modal con los atributos data-* del botón pulsado
     function abrirModalEditar(boton) {
         const alumno = boton.dataset;
         const formulario = document.getElementById('formEditarAlumno');

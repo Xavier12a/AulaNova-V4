@@ -8,6 +8,35 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/comunicados.css') }}">
 
 <style>
+    .evento-campos-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    .evento-campo-full {
+        grid-column: 1 / -1;
+    }
+
+    .com-meta-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin: 8px 0 10px;
+    }
+
+    .com-meta-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #334155;
+        font-size: 11.5px;
+        font-weight: 600;
+    }
+
     .aviso-ia {
         margin: 12px 0 16px;
         padding: 12px;
@@ -30,13 +59,6 @@
         margin-bottom: 10px;
     }
 
-    .aviso-ia-fecha-hora {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: 8px;
-    }
-
-    .aviso-ia input,
     .aviso-ia textarea {
         width: 100%;
         min-width: 0;
@@ -81,9 +103,10 @@
 
 {% set rol = session.get('id_rol') %}
 
+{# Si es estudiante (rol 3), el muro ocupa todo el ancho al ocultarse el panel lateral #}
 <div class="comunicados-grid"{% if rol == 3 %} style="grid-template-columns: 1fr;"{% endif %}>
 
-    <!-- Muro de avisos con búsqueda y filtros por categoría -->
+    <!-- Muro de avisos con buscador y pestañas por categoría -->
     <div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
@@ -140,6 +163,7 @@
                                 </span>
                             </div>
 
+                            {# Solo dirección (rol 1) o el docente autor pueden borrar el aviso #}
                             {% if rol == 1 or (rol == 2 and c.id_autor == session.get('id_usuario')) %}
                                 <form action="/eliminar-comunicado/{{ c.id_comunicado }}"
                                       method="POST"
@@ -159,6 +183,42 @@
                         </div>
 
                         <h4 class="notice-title">{{ c.titulo }}</h4>
+
+                        {# Muestra fecha, hora o lugar solo si se registraron en el comunicado #}
+                        {% if c.fecha_evento or c.hora_evento or c.lugar_evento %}
+                            <div class="com-meta-tags">
+                                {% if c.fecha_evento %}
+                                    <span class="com-meta-chip">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                            <line x1="16" y1="2" x2="16" y2="6"/>
+                                            <line x1="8" y1="2" x2="8" y2="6"/>
+                                            <line x1="3" y1="10" x2="21" y2="10"/>
+                                        </svg>
+                                        {{ c.fecha_evento }}
+                                    </span>
+                                {% endif %}
+                                {% if c.hora_evento %}
+                                    <span class="com-meta-chip">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="10"/>
+                                            <polyline points="12 6 12 12 16 14"/>
+                                        </svg>
+                                        {{ c.hora_evento }}
+                                    </span>
+                                {% endif %}
+                                {% if c.lugar_evento %}
+                                    <span class="com-meta-chip">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                            <circle cx="12" cy="10" r="3"/>
+                                        </svg>
+                                        {{ c.lugar_evento }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+
                         <div class="notice-body">{{ c.mensaje }}</div>
 
                         <div class="notice-footer">
@@ -178,7 +238,7 @@
         {% endif %}
     </div>
 
-    <!-- Dirección y docentes revisan el borrador antes de publicar. -->
+    <!-- Panel lateral de publicación disponible solo para dirección y docentes -->
     {% if rol in [1, 2] %}
         <aside class="publish-card">
             <h3>Publicar Comunicado</h3>
@@ -208,6 +268,27 @@
                     </select>
                 </div>
 
+                <!-- Datos opcionales de evento que también alimentan el generador IA -->
+                <div class="form-field">
+                    <label>Detalles del evento o reunión (opcional)</label>
+                    <div class="evento-campos-grid">
+                        <div class="form-field" style="margin-bottom: 0;">
+                            <label for="fechaAviso" style="font-size: 11.5px; color: #475569;">Fecha</label>
+                            <input type="date" id="fechaAviso" name="fecha_evento">
+                        </div>
+                        <div class="form-field" style="margin-bottom: 0;">
+                            <label for="horaAviso" style="font-size: 11.5px; color: #475569;">Hora</label>
+                            <input type="time" id="horaAviso" name="hora_evento">
+                        </div>
+                        <div class="form-field evento-campo-full" style="margin-bottom: 0;">
+                            <label for="lugarAviso" style="font-size: 11.5px; color: #475569;">Lugar</label>
+                            <input type="text" id="lugarAviso" name="lugar_evento" maxlength="160"
+                                   placeholder="Ej. Auditorio del colegio">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bloque desplegable para redactar un borrador automático antes de publicar -->
                 <details class="aviso-ia" open>
                     <summary>Redactar con IA</summary>
 
@@ -215,23 +296,6 @@
                         <label for="motivoAviso">¿Qué necesitas comunicar?</label>
                         <textarea id="motivoAviso" rows="3" maxlength="1500"
                                   placeholder="Ej. Convocar a las familias para entregar las libretas del segundo bimestre."></textarea>
-                    </div>
-
-                    <div class="aviso-ia-fecha-hora">
-                        <div class="form-field">
-                            <label for="fechaAviso">Fecha (opcional)</label>
-                            <input type="date" id="fechaAviso">
-                        </div>
-                        <div class="form-field">
-                            <label for="horaAviso">Hora (opcional)</label>
-                            <input type="time" id="horaAviso">
-                        </div>
-                    </div>
-
-                    <div class="form-field">
-                        <label for="lugarAviso">Lugar (opcional)</label>
-                        <input type="text" id="lugarAviso" maxlength="160"
-                               placeholder="Ej. Auditorio del colegio">
                     </div>
 
                     <button type="button" id="generarAviso" class="btn-generar-aviso"
@@ -274,6 +338,7 @@
 <script>
     let categoriaActiva = 'ALL';
 
+    // Cambia la pestaña activa y vuelve a filtrar las tarjetas visibles
     function filtrarCategoria(boton) {
         categoriaActiva = boton.dataset.categoria;
 
@@ -284,6 +349,7 @@
         filtrarAvisos();
     }
 
+    // Combina el filtro de categoría con el texto ingresado en el buscador
     function filtrarAvisos() {
         const busqueda = document.getElementById('buscarAviso').value.trim().toLowerCase();
 
@@ -336,6 +402,7 @@
             });
         });
 
+        // Bloquea controles durante la petición para evitar envíos duplicados
         function cambiarEspera(activa) {
             generando = activa;
             camposIA.forEach(campo => { campo.disabled = activa; });
@@ -350,6 +417,7 @@
             if (generando) evento.preventDefault();
         });
 
+        // Envía los parámetros al endpoint de IA y rellena título y mensaje
         generar.addEventListener('click', async () => {
             if (generando || !datosCompletos()) return;
 

@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/cursos.css') }}">
 {% endblock %}
 
-{# La tabla y los formularios comparten los mismos grados y secciones. #}
+{# Opciones de grado y sección reutilizadas en filtros, registro y edición #}
 {% set secciones = ['A', 'B', 'C', 'D', 'E'] %}
 
 {% macro opciones_grado() %}
@@ -33,7 +33,7 @@
 
 {% block content %}
 <div class="cursos-grid">
-    <!-- Lista de cursos y filtros por salón -->
+    <!-- Tabla de cursos asignados con filtros en tiempo real -->
     <div class="card">
         <div class="table-header-bar">
             <div style="display: flex; align-items: center; gap: 10px;">
@@ -85,6 +85,7 @@
 
             <tbody>
                 {% for c in cursos %}
+                    {# Los data-* de la fila facilitan tanto el filtrado como la carga del modal #}
                     <tr data-grado="{{ c.grado }}" data-seccion="{{ c.seccion }}">
                         <td><strong>{{ c.nombre_curso }}</strong></td>
                         <td><span class="grado-badge">{{ c.grado }}</span></td>
@@ -137,7 +138,7 @@
         </table>
     </div>
 
-    <!-- Registro de un curso para una o varias secciones del mismo grado -->
+    <!-- Formulario para asignar un curso a una o varias secciones de un grado -->
     <div class="form-card">
         <h3>Registrar Nuevo Curso</h3>
         <p>Asigna una asignatura y un docente a una o varias secciones al mismo tiempo.</p>
@@ -208,7 +209,7 @@
     </div>
 </div>
 
-<!-- Edición del curso correspondiente al salón seleccionado -->
+<!-- Modal para editar nombre, salón o docente del curso seleccionado -->
 <div class="modal-backdrop" id="modalEditarCurso"
      onclick="if (event.target === this) cerrarModalEditarCurso()">
     <div class="modal-box">
@@ -258,6 +259,7 @@
 </div>
 
 <script>
+    // Marca o desmarca todas las casillas de sección según su estado actual
     function alternarTodasSecciones() {
         const casillas = document.querySelectorAll('.chk-seccion');
         const todasMarcadas = Array.from(casillas).every(casilla => casilla.checked);
@@ -267,6 +269,7 @@
         });
     }
 
+    // Filtra las filas de la tabla combinando texto libre, grado y sección
     function filtrarTablaCursos() {
         const texto = document.getElementById('filtroCursoTexto').value.trim().toLowerCase();
         const grado = document.getElementById('filtroCursoGrado').value;
@@ -282,6 +285,7 @@
         });
     }
 
+    // Carga los datos del curso y de su fila en el modal de edición
     function abrirModalEditarCurso(boton) {
         const curso = boton.dataset;
         const salon = boton.closest('tr').dataset;

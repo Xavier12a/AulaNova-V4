@@ -10,7 +10,7 @@
 
 {% block content %}
 
-{# Los promedios y la tasa de aprobación usan solo las notas registradas. #}
+{# Calcula promedio del salón, aprobación y alumnos con cursos desaprobados (< 11) #}
 {% set stats = namespace(suma_notas=0, total_notas=0, aprobados=0, desaprobados=0, alumnos_riesgo=0) %}
 
 {% for a in alumnos %}
@@ -41,6 +41,7 @@
 {% set pct_aprobacion = ((stats.aprobados / stats.total_notas) * 100)|round(0)|int if stats.total_notas > 0 else 0 %}
 {% set esperadas = (alumnos|length) * (cursos|length) %}
 
+<!-- Filtros por grado, sección, bimestre y exportación del acta -->
 <div class="filter-bar">
     <form method="GET" action="/calificaciones" class="filter-controls">
         <div class="filter-group">
@@ -100,6 +101,7 @@
     {% endif %}
 </div>
 
+<!-- Tarjetas resumen del rendimiento general del aula -->
 <div class="kpi-grid">
     <div class="kpi-card">
         <div class="kpi-label">Promedio General del Salón</div>
@@ -134,7 +136,7 @@
     </div>
 </div>
 
-<!-- Acta del salón y bimestre seleccionados -->
+<!-- Matriz consolidada de notas por alumno y asignatura -->
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
         <div>
@@ -160,6 +162,7 @@
                     <th style="min-width: 200px;">Apellidos y Nombres</th>
 
                     {% for c in cursos %}
+                        {# data-encabezado guarda el nombre limpio del curso sin el apellido del docente #}
                         <th style="text-align: center; min-width: 120px;"
                             data-encabezado="{{ c.nombre_curso }}">
                             <div>{{ c.nombre_curso }}</div>
@@ -266,12 +269,12 @@
 </div>
 
 <script>
+    // Exporta el acta consolidada a CSV omitiendo la columna del enlace a la boleta
     function exportarActaCSV() {
         const tabla = document.getElementById('tablaActaNotas');
         const lineas = [];
 
         for (const fila of tabla.rows) {
-            // La última columna contiene el enlace a la libreta y se excluye del acta.
             const celdas = Array.from(fila.cells).slice(0, -1);
             const datos = celdas.map(celda => {
                 const texto = (celda.dataset.encabezado ?? celda.textContent).replace(/\s+/g, ' ').trim();

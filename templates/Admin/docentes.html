@@ -28,6 +28,7 @@
 {% endblock %}
 
 {% block content %}
+<!-- Descarga de plantilla e importación masiva de docentes por CSV -->
 <div class="mass-bar">
     <div class="mass-title">
         <h3>Acciones Masivas de Plana Docente</h3>
@@ -46,6 +47,7 @@
 </div>
 
 <div class="grid-docentes">
+    <!-- Listado de docentes registrados y búsqueda rápida -->
     <div class="card">
         <div class="table-header-bar">
             <div style="display:flex;align-items:center;gap:10px">
@@ -84,6 +86,7 @@
                         </td>
                         <td>
                             <div class="actions-cell">
+                                <!-- Los atributos data-* alimentan el modal de edición -->
                                 <button type="button" class="btn-icon" title="Editar docente"
                                         aria-label="Editar a {{ d.nombres }} {{ d.apellidos }}"
                                         data-id="{{ d.id_usuario }}" data-nombres="{{ d.nombres }}"
@@ -92,6 +95,7 @@
                                     ✎
                                 </button>
 
+                                <!-- Reinicia la clave del docente al valor de su DNI -->
                                 <a class="accion-clave"
                                    href="{{ url_for('restablecer_clave', id_docente=d.id_usuario) }}">
                                     Restablecer clave
@@ -121,6 +125,7 @@
         </div>
     </div>
 
+    <!-- Formulario de registro individual de docentes -->
     <div class="card">
         <h3>Registrar Nuevo Docente</h3>
 
@@ -148,6 +153,7 @@
     </div>
 </div>
 
+<!-- Modal para editar los datos básicos del docente seleccionado -->
 <div class="modal-backdrop" id="modalEditarDocente">
     <div class="modal-box">
         <div class="modal-header">
@@ -179,6 +185,7 @@
 </div>
 
 <script>
+    // Filtra las filas de docentes según el texto escrito en el buscador
     function filtrarDocentes() {
         const filtro = document.getElementById('buscarDocente').value.toLowerCase();
         document.querySelectorAll('#tablaDocentes tbody tr').forEach(fila => {
@@ -186,6 +193,7 @@
         });
     }
 
+    // Rellena el formulario del modal con los datos del docente pulsado
     function abrirModalDocente(boton) {
         const docente = boton.dataset;
         document.getElementById('formEditarDocente').action = '/editar-docente/' + docente.id;

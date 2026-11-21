@@ -10,6 +10,94 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_estudiante.css') }}">
 
 <style>
+    /* Reserva espacio inferior para que el widget del búho no tape la última fila */
+    .content {
+        padding-bottom: 84px !important;
+    }
+
+    .teacher-comment-box {
+        margin-top: 8px;
+        padding: 8px 11px;
+        border-radius: 8px;
+        background: #f0f9ff;
+        border-left: 3px solid #0284c7;
+        font-size: 12.5px;
+        color: #1e293b;
+        line-height: 1.45;
+    }
+
+    .teacher-comment-box.empty {
+        background: #f8fafc;
+        border-left-color: #cbd5e1;
+        color: #64748b;
+        font-style: italic;
+    }
+
+    .com-meta-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin: 8px 0 6px;
+    }
+
+    .com-meta-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #334155;
+        font-size: 11.5px;
+        font-weight: 600;
+    }
+
+    /* Barra de filtros y búsqueda en la pestaña de comunicados */
+    .com-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 12px 0 16px;
+    }
+
+    .com-search-input {
+        min-width: 220px;
+        padding: 7px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        font-family: inherit;
+        font-size: 12.5px;
+        color: #0f172a;
+        background: #fff;
+    }
+
+    .com-search-input:focus {
+        outline: none;
+        border-color: #0284c7;
+        box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.12);
+    }
+
+    .asist-filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .asist-course-select {
+        padding: 7px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        font-family: inherit;
+        font-size: 12.5px;
+        color: #0f172a;
+        background: #fff;
+    }
+
     .buho-panel {
         position: fixed;
         right: 18px;
@@ -250,16 +338,17 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
 
 {% block content %}
 
+<!-- Cabecera principal con acceso directo a la impresión de boleta -->
 <div class="student-banner">
     <div>
         <h2>Hola, {{ usuario.nombres }} {{ usuario.apellidos }}</h2>
         <p>
             Bienvenido al portal oficial de consultas de la I.E. 2060 Virgen de Guadalupe.
-            Aquí puedes revisar tus asignaturas, calificaciones bimestrales, asistencia y entregar tus tareas.
+            Usa el menú lateral para revisar tus tareas, calificaciones, asistencia y comunicados.
         </p>
     </div>
 
-    <button type="button" class="btn-print-boleta" onclick="window.print()">
+    <button type="button" class="btn-print-boleta" onclick="imprimirBoleta()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
              stroke="currentColor" stroke-width="2.2">
             <polyline points="6 9 6 2 18 2 18 9"/>
@@ -270,344 +359,170 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
     </button>
 </div>
 
-<!-- Resumen académico del estudiante -->
-<div class="kpi-grid-4">
-    <div class="kpi-card">
-        <div class="kpi-info">
-            <span>Promedio General</span>
-            <h3 style="color: {% if promedio_general is none %}#0f172a{% elif promedio_general < 11 %}#dc2626{% else %}#15803d{% endif %};">
-                {% if promedio_general is not none %}
-                    {{ promedio_general }} ({{ promedio_general|nota_literal }})
-                {% else %}
-                    —
-                {% endif %}
-            </h3>
-        </div>
-        <div class="kpi-icon" style="background: #dcfce7; color: #15803d;">
-            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
-                <polyline points="16 7 22 7 22 13"/>
-            </svg>
-        </div>
-    </div>
-
-    <div class="kpi-card">
-        <div class="kpi-info">
-            <span>Asistencia</span>
-            <h3>{{ pct_asistencia }}%</h3>
-        </div>
-        <div class="kpi-icon" style="background: #e0f2fe; color: #0284c7;">
-            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="m9 11 3 3L22 4"/>
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-            </svg>
-        </div>
-    </div>
-
-    <div class="kpi-card">
-        <div class="kpi-info">
-            <span>Tareas Pendientes</span>
-            <h3 style="color: {{ '#d97706' if tareas_pendientes > 0 else '#0f172a' }};">
-                {{ tareas_pendientes }}
-            </h3>
-        </div>
-        <div class="kpi-icon" style="background: #fef3c7; color: #b45309;">
-            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" x2="8" y1="13" y2="13"/>
-                <line x1="16" x2="8" y1="17" y2="17"/>
-            </svg>
-        </div>
-    </div>
-
-    <div class="kpi-card">
-        <div class="kpi-info">
-            <span>Asignaturas</span>
-            <h3>{{ cursos|length }}</h3>
-        </div>
-        <div class="kpi-icon" style="background: #f3e8ff; color: #7e22ce;">
-            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-            </svg>
-        </div>
-    </div>
-</div>
-
-<div class="info-courses-grid">
-    <div class="card">
-        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">Datos del Estudiante</h3>
-        <div class="profile-list">
-            <div class="profile-item">
-                <span>DNI / Código</span>
-                <strong>{{ usuario.dni }}</strong>
-            </div>
-            <div class="profile-item">
-                <span>Grado y Sección</span>
-                <strong>{{ usuario.grado }} — Sección "{{ usuario.seccion }}"</strong>
-            </div>
-            <div class="profile-item">
-                <span>Correo Institucional</span>
-                <strong>{{ usuario.correo }}</strong>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
-            Mis Asignaturas ({{ usuario.grado }} - "{{ usuario.seccion }}")
-        </h3>
-
-        {% if cursos %}
-            <div class="asignaturas-grid">
-                {% for c in cursos %}
-                    <div class="asig-box">
-                        <h4>{{ c.nombre_curso }}</h4>
-                        <p>
-                            {% if c.docente_nombres %}
-                                Prof. {{ c.docente_nombres }} {{ c.docente_apellidos }}
-                            {% else %}
-                                Docente por asignar
-                            {% endif %}
-                        </p>
-                    </div>
-                {% endfor %}
-            </div>
-        {% else %}
-            <p style="color: #94a3b8; font-size: 13px; margin-top: 14px;">
-                Aún no hay asignaturas asignadas para tu grado y sección.
-            </p>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Tareas, guías del docente y entrega de trabajos -->
-<div class="card">
-    <div style="margin-bottom: 12px;">
-        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
-            Tareas, Prácticas y Entrega de Trabajos
-        </h3>
-        <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
-            Descarga la guía del docente y sube tu archivo resuelto antes de la fecha límite.
-        </p>
-    </div>
-
-    {% if tareas %}
-        <div class="tasks-list">
-            {% for t in tareas %}
-                {% set entrega = entregas_dict.get(t.id_tarea) %}
-                <article class="st-task-card" id="tarea-{{ t.id_tarea }}" tabindex="-1">
-                    <div>
-                        <div class="st-task-top">
-                            <span class="course-tag">{{ t.nombre_curso }}</span>
-
-                            {% if entrega and entrega.nota_tarea is not none %}
-                                <span class="status-tag tag-calificada">
-                                    Calificada: {{ entrega.nota_tarea }} / 20 ({{ entrega.nota_tarea|nota_literal }})
-                                </span>
-                            {% elif entrega %}
-                                <span class="status-tag tag-entregada">Entregada</span>
-                            {% elif t.fecha_entrega and t.fecha_entrega < hoy %}
-                                <span class="status-tag tag-vencida">
-                                    Plazo Vencido ({{ t.fecha_entrega }})
-                                </span>
-                            {% else %}
-                                <span class="status-tag tag-pendiente">
-                                    Entrega límite: {{ t.fecha_entrega or 'Sin fecha' }}
-                                </span>
-                            {% endif %}
-                        </div>
-
-                        <h4 class="st-task-title">{{ t.titulo }}</h4>
-                        <p class="st-task-desc">{{ t.descripcion }}</p>
-                    </div>
-
-                    {% if t.archivo_adjunto %}
-                        <a href="{{ url_for('static', filename='uploads/' + t.archivo_adjunto) }}"
-                           target="_blank" rel="noopener" class="guide-link">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                                 stroke="currentColor" stroke-width="2.2">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                <polyline points="7 10 12 15 17 10"/>
-                                <line x1="12" x2="12" y1="15" y2="3"/>
-                            </svg>
-                            Descargar ficha / guía del docente
-                        </a>
+<!-- =========================================================
+     VISTA 1: MI AULA VIRTUAL (RESUMEN GENERAL: HASTA 3 AVISOS)
+     ========================================================= -->
+<section id="panel-inicio" class="student-tab-panel active">
+    <div class="kpi-grid-4">
+        <div class="kpi-card clickable" onclick="activarVista('calificaciones')" title="Ver mis calificaciones">
+            <div class="kpi-info">
+                <span>Promedio General</span>
+                <h3 style="color: {% if promedio_general is none %}#0f172a{% elif promedio_general < 11 %}#dc2626{% else %}#15803d{% endif %};">
+                    {% if promedio_general is not none %}
+                        {{ promedio_general }} ({{ promedio_general|nota_literal }})
+                    {% else %}
+                        —
                     {% endif %}
-
-                    <div class="delivery-box">
-                        {% if entrega %}
-                            <div style="font-size: 12px; color: #0369a1; font-weight: 700;">
-                                Archivo enviado:
-                                <a href="{{ url_for('static', filename='uploads/' + entrega.archivo_alumno) }}"
-                                   target="_blank" rel="noopener"
-                                   style="color: #0284c7; text-decoration: underline;">
-                                    Ver mi entrega
-                                </a>
-                                <span style="color: #64748b; font-weight: 500;">
-                                    ({{ entrega.fecha_entrega }})
-                                </span>
-                            </div>
-                        {% else %}
-                            <div style="font-size: 12px; color: #475569; font-weight: 600;">
-                                Sube tu trabajo resuelto (PDF, Word o Imagen):
-                            </div>
-                        {% endif %}
-
-                        <form action="/estudiante/entregar-tarea/{{ t.id_tarea }}"
-                              method="POST" enctype="multipart/form-data" class="upload-row">
-                            <input type="file" name="archivo_alumno" required>
-                            <button type="submit" class="btn-send-hw">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                                     stroke="currentColor" stroke-width="2.2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="17 8 12 3 7 8"/>
-                                    <line x1="12" x2="12" y1="3" y2="15"/>
-                                </svg>
-                                {% if entrega %}Actualizar envío{% else %}Enviar tarea{% endif %}
-                            </button>
-                        </form>
-                    </div>
-                </article>
-            {% endfor %}
+                </h3>
+            </div>
+            <div class="kpi-icon" style="background: #dcfce7; color: #15803d;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+                    <polyline points="16 7 22 7 22 13"/>
+                </svg>
+            </div>
         </div>
-    {% else %}
-        <div style="text-align: center; padding: 30px 16px; color: #94a3b8; font-size: 13px;">
-            No hay tareas pendientes publicadas en este momento.
-        </div>
-    {% endif %}
-</div>
 
-<!-- Calificaciones bimestrales -->
-<div class="card">
-    <div style="margin-bottom: 14px;">
-        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
-            Mis Calificaciones Bimestrales
-        </h3>
-        <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
-            Notas oficiales registradas en escala vigesimal (0 - 20) y equivalencia literal MINEDU.
-        </p>
+        <div class="kpi-card clickable" onclick="activarVista('asistencias')" title="Ver detalle de asistencia">
+            <div class="kpi-info">
+                <span>Asistencia General</span>
+                <h3>{{ pct_asistencia }}%</h3>
+            </div>
+            <div class="kpi-icon" style="background: #e0f2fe; color: #0284c7;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m9 11 3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+            </div>
+        </div>
+
+        <div class="kpi-card clickable" onclick="activarVista('tareas')" title="Ir a tareas y entregas">
+            <div class="kpi-info">
+                <span>Tareas Pendientes</span>
+                <h3 style="color: {{ '#d97706' if tareas_pendientes > 0 else '#0f172a' }};">
+                    {{ tareas_pendientes }}
+                </h3>
+            </div>
+            <div class="kpi-icon" style="background: #fef3c7; color: #b45309;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" x2="8" y1="13" y2="13"/>
+                    <line x1="16" x2="8" y1="17" y2="17"/>
+                </svg>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-info">
+                <span>Asignaturas</span>
+                <h3>{{ cursos|length }}</h3>
+            </div>
+            <div class="kpi-icon" style="background: #f3e8ff; color: #7e22ce;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                </svg>
+            </div>
+        </div>
     </div>
 
-    {% if cursos %}
-        <table>
-            <thead>
-                <tr>
-                    <th>Asignatura</th>
-                    {% for numero in range(1, 5) %}
-                        <th style="text-align: center;">Bimestre {{ numero }}</th>
-                    {% endfor %}
-                    <th style="text-align: center;">Promedio</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for c in cursos %}
-                    <tr>
-                        <td><strong>{{ c.nombre_curso }}</strong></td>
-                        {% for numero in range(1, 5) %}
-                            {% set n = notas_alumno.get((c.id_curso, 'Bimestre ' ~ numero)) %}
-                            <td style="text-align: center;">
-                                {% if n is not none %}
-                                    <span class="nota-pill {{ 'nota-ok' if n >= 11 else 'nota-fail' }}"
-                                          style="white-space: nowrap;">
-                                        {{ n }} ({{ n|nota_literal }})
-                                    </span>
+    <!-- Datos personales del estudiante y lista de asignaturas matriculadas -->
+    <div class="info-courses-grid">
+        <div class="card">
+            <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">Datos del Estudiante</h3>
+            <div class="profile-list">
+                <div class="profile-item">
+                    <span>DNI / Código</span>
+                    <strong>{{ usuario.dni }}</strong>
+                </div>
+                <div class="profile-item">
+                    <span>Grado y Sección</span>
+                    <strong>{{ usuario.grado }} — Sección "{{ usuario.seccion }}"</strong>
+                </div>
+                <div class="profile-item">
+                    <span>Correo Institucional</span>
+                    <strong>{{ usuario.correo }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+                Mis Asignaturas ({{ usuario.grado }} - "{{ usuario.seccion }}")
+            </h3>
+
+            {% if cursos %}
+                <div class="asignaturas-grid">
+                    {% for c in cursos %}
+                        <div class="asig-box">
+                            <h4>{{ c.nombre_curso }}</h4>
+                            <p>
+                                {% if c.docente_nombres %}
+                                    Prof. {{ c.docente_nombres }} {{ c.docente_apellidos }}
                                 {% else %}
-                                    <span class="nota-none">—</span>
+                                    Docente por asignar
                                 {% endif %}
-                            </td>
-                        {% endfor %}
-
-                        {% set prom_c = promedios_curso.get(c.id_curso) %}
-                        <td style="text-align: center;">
-                            {% if prom_c is not none %}
-                                <span class="nota-pill {{ 'nota-ok' if prom_c >= 11 else 'nota-fail' }}"
-                                      style="white-space: nowrap;">
-                                    {{ prom_c }} ({{ prom_c|nota_literal }})
-                                </span>
-                            {% else %}
-                                <span class="nota-none">—</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between;">
-            <span><strong>Equivalencia MINEDU:</strong></span>
-            <span><strong>AD</strong> (18.0 – 20.0): Logro Destacado</span>
-            <span><strong>A</strong> (14.0 – 17.9): Logro Esperado</span>
-            <span><strong>B</strong> (11.0 – 13.9): En Proceso</span>
-            <span><strong>C</strong> (0.0 – 10.9): En Inicio</span>
-        </div>
-    {% else %}
-        <p style="color: #94a3b8; font-size: 13px;">No hay calificaciones registradas todavía.</p>
-    {% endif %}
-</div>
-
-<!-- Asistencia y comunicados recientes -->
-<div class="bottom-grid">
-    <div class="card">
-        <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
-            Control de Asistencia y Puntualidad
-        </h3>
-
-        <div class="asist-badges">
-            <span class="ab-chip" style="background: #dcfce7; color: #15803d;">
-                Presentes: {{ asist_stats.presente or 0 }}
-            </span>
-            <span class="ab-chip" style="background: #fef3c7; color: #b45309;">
-                Tardanzas: {{ asist_stats.tardanza or 0 }}
-            </span>
-            <span class="ab-chip" style="background: #fee2e2; color: #b91c1c;">
-                Faltas: {{ asist_stats.ausente or 0 }}
-            </span>
-            <span class="ab-chip" style="background: #e0f2fe; color: #0369a1;">
-                Justificadas: {{ asist_stats.justificada or 0 }}
-            </span>
-        </div>
-
-        {% if ultimas_asistencias %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Estado</th>
-                        <th>Observación</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for ua in ultimas_asistencias %}
-                        <tr>
-                            <td><strong>{{ ua.fecha }}</strong></td>
-                            <td>{{ ua.estado }}</td>
-                            <td style="font-size: 12px; color: #64748b;">
-                                {{ ua.observacion or '—' }}
-                            </td>
-                        </tr>
+                            </p>
+                        </div>
                     {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p style="color: #94a3b8; font-size: 13px; margin-top: 10px;">
-                Aún no hay registros de asistencia.
-            </p>
-        {% endif %}
+                </div>
+            {% else %}
+                <p style="color: #94a3b8; font-size: 13px; margin-top: 14px;">
+                    Aún no hay asignaturas asignadas para tu grado y sección.
+                </p>
+            {% endif %}
+        </div>
     </div>
 
+    <!-- Vista previa con los últimos 3 avisos institucionales -->
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">Comunicados Recientes</h3>
-            <a href="/comunicados" style="font-size: 12px; font-weight: 700; color: #0284c7; text-decoration: none;">
-                Ver todos &rarr;
-            </a>
+            <button type="button" class="link-btn-inline" onclick="activarVista('comunicados')">
+                Ver todos los comunicados &rarr;
+            </button>
         </div>
 
-        {% for com in comunicados_recientes %}
+        {% for com in comunicados_recientes[:3] %}
             <div class="notice-mini {{ com.categoria or 'General' }}">
-                <h4>{{ com.titulo }}</h4>
+                <div class="notice-header-row">
+                    <h4>{{ com.titulo }}</h4>
+                    <span class="notice-badge">{{ com.categoria or 'General' }}</span>
+                </div>
+                {% if com.fecha_evento or com.hora_evento or com.lugar_evento %}
+                    <div class="com-meta-tags">
+                        {% if com.fecha_evento %}
+                            <span class="com-meta-chip">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                    <line x1="16" y1="2" x2="16" y2="6"/>
+                                    <line x1="8" y1="2" x2="8" y2="6"/>
+                                    <line x1="3" y1="10" x2="21" y2="10"/>
+                                </svg>
+                                {{ com.fecha_evento }}
+                            </span>
+                        {% endif %}
+                        {% if com.hora_evento %}
+                            <span class="com-meta-chip">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                                {{ com.hora_evento }}
+                            </span>
+                        {% endif %}
+                        {% if com.lugar_evento %}
+                            <span class="com-meta-chip">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                    <circle cx="12" cy="10" r="3"/>
+                                </svg>
+                                {{ com.lugar_evento }}
+                            </span>
+                        {% endif %}
+                    </div>
+                {% endif %}
                 <p>{{ com.mensaje }}</p>
                 <small>{{ com.autor }} • {{ com.fecha }}</small>
             </div>
@@ -615,9 +530,635 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
             <p style="color: #94a3b8; font-size: 13px; margin-top: 14px;">No hay comunicados publicados.</p>
         {% endfor %}
     </div>
-</div>
+</section>
 
-{# El recordatorio y la respuesta rápida usan las mismas tareas y la misma fecha del tablero. #}
+<!-- =========================================================
+     VISTA 2: TAREAS, PRÁCTICAS Y ENTREGA DE TRABAJOS
+     ========================================================= -->
+<section id="panel-tareas" class="student-tab-panel">
+    <div class="card">
+        <div style="margin-bottom: 12px;">
+            <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+                Tareas, Prácticas y Entrega de Trabajos
+            </h3>
+            <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                Descarga la guía del docente y sube tu archivo resuelto antes de la fecha límite.
+            </p>
+        </div>
+
+        {% if tareas %}
+            <div class="tasks-list">
+                {% for t in tareas %}
+                    {# Verifica si existe entrega previa y si ya recibió calificación #}
+                    {% set entrega = entregas_dict.get(t.id_tarea) %}
+                    {% set esta_calificada = entrega and entrega.nota_tarea is not none %}
+                    {% set comentario_doc = entrega.comentario_docente if entrega else none %}
+                    <article class="st-task-card" id="tarea-{{ t.id_tarea }}" tabindex="-1">
+                        <div>
+                            <div class="st-task-top">
+                                <span class="course-tag">{{ t.nombre_curso }}</span>
+
+                                {% if esta_calificada %}
+                                    <span class="status-tag tag-calificada">
+                                        Calificada: {{ entrega.nota_tarea }} / 20 ({{ entrega.nota_tarea|nota_literal }})
+                                    </span>
+                                {% elif entrega %}
+                                    <span class="status-tag tag-entregada">Entregada (En revisión)</span>
+                                {% elif t.fecha_entrega and t.fecha_entrega < hoy %}
+                                    <span class="status-tag tag-vencida">
+                                        Plazo Vencido ({{ t.fecha_entrega }})
+                                    </span>
+                                {% else %}
+                                    <span class="status-tag tag-pendiente">
+                                        Entrega límite: {{ t.fecha_entrega or 'Sin fecha' }}
+                                    </span>
+                                {% endif %}
+                            </div>
+
+                            <h4 class="st-task-title">{{ t.titulo }}</h4>
+                            <p class="st-task-desc">{{ t.descripcion }}</p>
+                        </div>
+
+                        {% if t.archivo_adjunto %}
+                            <a href="{{ url_for('static', filename='uploads/' + t.archivo_adjunto) }}"
+                               target="_blank" rel="noopener" class="guide-link">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                     stroke="currentColor" stroke-width="2.2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" x2="12" y1="15" y2="3"/>
+                                </svg>
+                                Descargar ficha / guía del docente
+                            </a>
+                        {% endif %}
+
+                        <div class="delivery-box">
+                            {% if entrega %}
+                                <div style="font-size: 12px; color: #0369a1; font-weight: 700;">
+                                    Archivo enviado:
+                                    <a href="{{ url_for('static', filename='uploads/' + entrega.archivo_alumno) }}"
+                                       target="_blank" rel="noopener"
+                                       style="color: #0284c7; text-decoration: underline;">
+                                        Ver mi entrega
+                                    </a>
+                                    <span style="color: #64748b; font-weight: 500;">
+                                        ({{ entrega.fecha_entrega }})
+                                    </span>
+                                </div>
+
+                                {% if comentario_doc %}
+                                    <div class="teacher-comment-box">
+                                        <strong>Comentario del docente:</strong> {{ comentario_doc }}
+                                    </div>
+                                {% else %}
+                                    <div class="teacher-comment-box empty">
+                                        Sin comentarios del docente.
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <div style="font-size: 12px; color: #475569; font-weight: 600;">
+                                    Sube tu trabajo resuelto (PDF, Word o Imagen):
+                                </div>
+                            {% endif %}
+
+                            {# Bloquea el reenvío si la tarea ya tiene nota registrada #}
+                            {% if esta_calificada %}
+                                <div style="margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #f1f5f9; border: 1px solid #cbd5e1; font-size: 12px; color: #475569; display: flex; align-items: center; gap: 7px;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.2" style="flex-shrink: 0;">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                    </svg>
+                                    <span>
+                                        <strong>Entrega cerrada:</strong> Esta actividad ya fue calificada. Si hubo un error en tu archivo, solicita al docente reabrir la entrega.
+                                    </span>
+                                </div>
+                            {% else %}
+                                <form action="/estudiante/entregar-tarea/{{ t.id_tarea }}"
+                                      method="POST" enctype="multipart/form-data" class="upload-row">
+                                    <input type="file" name="archivo_alumno" required>
+                                    <button type="submit" class="btn-send-hw">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                             stroke="currentColor" stroke-width="2.2">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                            <polyline points="17 8 12 3 7 8"/>
+                                            <line x1="12" x2="12" y1="3" y2="15"/>
+                                        </svg>
+                                        {% if entrega %}Actualizar envío{% else %}Enviar tarea{% endif %}
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div style="text-align: center; padding: 30px 16px; color: #94a3b8; font-size: 13px;">
+                No hay tareas pendientes publicadas en este momento.
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- =========================================================
+     VISTA 3: MIS CALIFICACIONES (BOLETA + NOTAS POR TAREA)
+     ========================================================= -->
+{# Identifica la asignatura con mayor promedio y cuenta los cursos aprobados #}
+{% set resumen_notas = namespace(mejor_curso='—', mejor_nota=-1, aprobados=0, evaluados=0) %}
+{% for c in cursos %}
+    {% set p = promedios_curso.get(c.id_curso) %}
+    {% if p is not none %}
+        {% set resumen_notas.evaluados = resumen_notas.evaluados + 1 %}
+        {% if p >= 11 %}
+            {% set resumen_notas.aprobados = resumen_notas.aprobados + 1 %}
+        {% endif %}
+        {% if p > resumen_notas.mejor_nota %}
+            {% set resumen_notas.mejor_nota = p %}
+            {% set resumen_notas.mejor_curso = c.nombre_curso %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+
+<section id="panel-calificaciones" class="student-tab-panel">
+    <div class="kpi-grid-3">
+        <div class="kpi-card">
+            <div class="kpi-info">
+                <span>Promedio General</span>
+                <h3 style="color: {% if promedio_general is none %}#0f172a{% elif promedio_general < 11 %}#dc2626{% else %}#15803d{% endif %};">
+                    {% if promedio_general is not none %}
+                        {{ promedio_general }} ({{ promedio_general|nota_literal }})
+                    {% else %}
+                        —
+                    {% endif %}
+                </h3>
+                <small>Escala vigesimal y nivel MINEDU</small>
+            </div>
+            <div class="kpi-icon" style="background: #dcfce7; color: #15803d;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+                    <polyline points="16 7 22 7 22 13"/>
+                </svg>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-info">
+                <span>Mejor Asignatura</span>
+                <h3 style="font-size: 18px;">
+                    {% if resumen_notas.mejor_nota >= 0 %}
+                        {{ resumen_notas.mejor_nota }} ({{ resumen_notas.mejor_nota|nota_literal }})
+                    {% else %}
+                        —
+                    {% endif %}
+                </h3>
+                <small>{{ resumen_notas.mejor_curso }}</small>
+            </div>
+            <div class="kpi-icon" style="background: #e0f2fe; color: #0284c7;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-info">
+                <span>Asignaturas Aprobadas</span>
+                <h3>{{ resumen_notas.aprobados }} / {{ cursos|length }}</h3>
+                <small>{{ resumen_notas.evaluados }} curso(s) con notas registradas</small>
+            </div>
+            <div class="kpi-icon" style="background: #f3e8ff; color: #7e22ce;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Boleta bimestral oficial con equivalencia literal MINEDU -->
+    <div class="card">
+        <div style="margin-bottom: 14px;">
+            <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+                Mis Calificaciones Bimestrales
+            </h3>
+            <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                Notas oficiales registradas en escala vigesimal (0 - 20) y equivalencia literal MINEDU.
+            </p>
+        </div>
+
+        {% if cursos %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Asignatura y Docente</th>
+                        {% for numero in range(1, 5) %}
+                            <th style="text-align: center;">Bimestre {{ numero }}</th>
+                        {% endfor %}
+                        <th style="text-align: center;" class="col-promedio">Promedio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in cursos %}
+                        <tr>
+                            <td>
+                                <strong>{{ c.nombre_curso }}</strong>
+                                <span class="curso-docente-sub">
+                                    {% if c.docente_nombres %}
+                                        Prof. {{ c.docente_nombres }} {{ c.docente_apellidos }}
+                                    {% else %}
+                                        Docente por asignar
+                                    {% endif %}
+                                </span>
+                            </td>
+                            {% for numero in range(1, 5) %}
+                                {% set n = notas_alumno.get((c.id_curso, 'Bimestre ' ~ numero)) %}
+                                <td style="text-align: center;">
+                                    {% if n is not none %}
+                                        {% set lit = n|nota_literal %}
+                                        {% set clase_nota = 'nota-ad' if lit == 'AD' else ('nota-a' if lit == 'A' else ('nota-b' if lit == 'B' else 'nota-c')) %}
+                                        <span class="nota-pill {{ clase_nota }}">
+                                            {{ n }} ({{ lit }})
+                                        </span>
+                                    {% else %}
+                                        <span class="nota-none">—</span>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+
+                            {% set prom_c = promedios_curso.get(c.id_curso) %}
+                            <td style="text-align: center;" class="col-promedio">
+                                {% if prom_c is not none %}
+                                    {% set lit_p = prom_c|nota_literal %}
+                                    {% set clase_prom = 'nota-ad' if lit_p == 'AD' else ('nota-a' if lit_p == 'A' else ('nota-b' if lit_p == 'B' else 'nota-c')) %}
+                                    <span class="nota-pill {{ clase_prom }}">
+                                        {{ prom_c }} ({{ lit_p }})
+                                    </span>
+                                {% else %}
+                                    <span class="nota-none">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div class="minedu-legend">
+                <strong>Equivalencia MINEDU:</strong>
+                <span class="legend-item">
+                    <i class="legend-dot" style="background: #22c55e;"></i>
+                    <strong>AD</strong> (18.0 – 20.0): Logro Destacado
+                </span>
+                <span class="legend-item">
+                    <i class="legend-dot" style="background: #0284c7;"></i>
+                    <strong>A</strong> (14.0 – 17.9): Logro Esperado
+                </span>
+                <span class="legend-item">
+                    <i class="legend-dot" style="background: #f59e0b;"></i>
+                    <strong>B</strong> (11.0 – 13.9): En Proceso
+                </span>
+                <span class="legend-item">
+                    <i class="legend-dot" style="background: #ef4444;"></i>
+                    <strong>C</strong> (0.0 – 10.9): En Inicio
+                </span>
+            </div>
+        {% else %}
+            <p style="color: #94a3b8; font-size: 13px;">No hay calificaciones registradas todavía.</p>
+        {% endif %}
+    </div>
+
+    <!-- Desglose individual de calificaciones obtenidas en tareas y prácticas -->
+    <div class="card">
+        <div style="margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+                    Notas por Actividad (Tareas y Prácticas)
+                </h3>
+                <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                    Detalle individual de las actividades evaluadas que promedian tu nota bimestral.
+                </p>
+            </div>
+            <button type="button" class="link-btn-inline" onclick="activarVista('tareas')">
+                Ir a Tareas y Entregas &rarr;
+            </button>
+        </div>
+
+        {% if tareas %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Asignatura</th>
+                        <th>Actividad / Tarea</th>
+                        <th>Estado</th>
+                        <th>Comentario del docente</th>
+                        <th style="text-align: center;">Calificación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in tareas %}
+                        {% set entrega = entregas_dict.get(t.id_tarea) %}
+                        {% set comentario_doc = entrega.comentario_docente if entrega else none %}
+                        <tr>
+                            <td><span class="course-tag">{{ t.nombre_curso }}</span></td>
+                            <td>
+                                <strong>{{ t.titulo }}</strong>
+                                {% if t.periodo %}
+                                    <span class="curso-docente-sub">{{ t.periodo }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if entrega and entrega.nota_tarea is not none %}
+                                    <span class="status-tag tag-calificada">Calificada</span>
+                                {% elif entrega %}
+                                    <span class="status-tag tag-entregada">Entregada (Por calificar)</span>
+                                {% elif t.fecha_entrega and t.fecha_entrega < hoy %}
+                                    <span class="status-tag tag-vencida">Plazo vencido</span>
+                                {% else %}
+                                    <span class="status-tag tag-pendiente">Pendiente</span>
+                                {% endif %}
+                            </td>
+                            <td style="font-size: 12.5px; color: {{ '#1e293b' if comentario_doc else '#94a3b8' }};">
+                                {% if comentario_doc %}
+                                    {{ comentario_doc }}
+                                {% else %}
+                                    Sin comentarios
+                                {% endif %}
+                            </td>
+                            <td style="text-align: center;">
+                                {% if entrega and entrega.nota_tarea is not none %}
+                                    {% set lit_t = entrega.nota_tarea|nota_literal %}
+                                    {% set clase_t = 'nota-ad' if lit_t == 'AD' else ('nota-a' if lit_t == 'A' else ('nota-b' if lit_t == 'B' else 'nota-c')) %}
+                                    <span class="nota-pill {{ clase_t }}">
+                                        {{ entrega.nota_tarea }} ({{ lit_t }})
+                                    </span>
+                                {% else %}
+                                    <span class="nota-none">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="color: #94a3b8; font-size: 13px;">Aún no hay actividades registradas.</p>
+        {% endif %}
+    </div>
+</section>
+
+<!-- =========================================================
+     VISTA 4: ASISTENCIAS (RESUMEN GENERAL + DETALLE POR CURSO)
+     ========================================================= -->
+<section id="panel-asistencias" class="student-tab-panel">
+    <div class="kpi-grid-4">
+        <div class="kpi-card">
+            <div class="kpi-info">
+                <span>Asistencias (Presente)</span>
+                <h3 style="color: #15803d;">{{ asist_stats.presente or 0 }}</h3>
+            </div>
+            <div class="kpi-icon" style="background: #dcfce7; color: #15803d;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-info">
+                <span>Tardanzas</span>
+                <h3 style="color: #b45309;">{{ asist_stats.tardanza or 0 }}</h3>
+            </div>
+            <div class="kpi-icon" style="background: #fef3c7; color: #b45309;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-info">
+                <span>Faltas Injustificadas</span>
+                <h3 style="color: #b91c1c;">{{ asist_stats.ausente or 0 }}</h3>
+            </div>
+            <div class="kpi-icon" style="background: #fee2e2; color: #b91c1c;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-info">
+                <span>Justificadas</span>
+                <h3 style="color: #0369a1;">{{ asist_stats.justificada or 0 }}</h3>
+            </div>
+            <div class="kpi-icon" style="background: #e0f2fe; color: #0369a1;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barra acumulada e historial filtrable por estado y asignatura -->
+    <div class="card">
+        <div>
+            <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+                Control de Asistencia General y por Curso
+            </h3>
+            <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                Consolidado general de asistencia e historial detallado por asignatura registrada por cada docente.
+            </p>
+        </div>
+
+        <div class="asist-progress-wrap">
+            <div class="asist-progress-top">
+                <span>Porcentaje acumulado general de asistencia</span>
+                <span style="color: {{ '#15803d' if pct_asistencia >= 85 else ('#b45309' if pct_asistencia >= 70 else '#b91c1c') }};">
+                    {{ pct_asistencia }}%
+                </span>
+            </div>
+            <div class="asist-progress-bar">
+                <div class="asist-progress-fill"
+                     style="width: {{ pct_asistencia }}%; background: {{ '#22c55e' if pct_asistencia >= 85 else ('#f59e0b' if pct_asistencia >= 70 else '#ef4444') }};">
+                </div>
+            </div>
+        </div>
+
+        {% if ultimas_asistencias %}
+            <div style="margin-top: 16px;">
+                <div class="asist-filter-bar">
+                    <div class="filter-pills-row" id="filtrosAsistenciaEstado" style="margin: 0;" aria-label="Filtrar asistencias por estado">
+                        <button type="button" class="filter-pill-btn active" onclick="filtrarAsistencias('todos', this)">
+                            Todos ({{ ultimas_asistencias|length }})
+                        </button>
+                        <button type="button" class="filter-pill-btn" onclick="filtrarAsistencias('Presente', this)">
+                            Presentes
+                        </button>
+                        <button type="button" class="filter-pill-btn" onclick="filtrarAsistencias('Tardanza', this)">
+                            Tardanzas
+                        </button>
+                        <button type="button" class="filter-pill-btn" onclick="filtrarAsistencias('Ausente', this)">
+                            Faltas
+                        </button>
+                        <button type="button" class="filter-pill-btn" onclick="filtrarAsistencias('Justificada', this)">
+                            Justificadas
+                        </button>
+                    </div>
+
+                    <select id="filtroCursoAsistencia" class="asist-course-select" onchange="aplicarFiltrosAsistencia()">
+                        <option value="todos">Todas las asignaturas</option>
+                        {% for c in cursos %}
+                            <option value="{{ c.nombre_curso }}">{{ c.nombre_curso }}</option>
+                        {% endfor %}
+                        <option value="Asistencia General">Asistencia General</option>
+                    </select>
+                </div>
+
+                <table id="tablaAsistenciasEstudiante">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Día</th>
+                            <th>Asignatura / Curso</th>
+                            <th>Estado</th>
+                            <th>Observación</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ua in ultimas_asistencias %}
+                            {# Agrupa tardanzas y faltas justificadas bajo una misma categoría de filtro #}
+                            {% set cat_filtro = 'Justificada' if 'Justificada' in ua.estado else ua.estado %}
+                            <tr data-estado="{{ cat_filtro }}" data-curso="{{ ua.nombre_curso }}">
+                                <td><strong>{{ ua.fecha }}</strong></td>
+                                <td class="asist-dia-semana" data-fecha="{{ ua.fecha }}" style="color: #475569; text-transform: capitalize;">—</td>
+                                <td><span class="course-tag">{{ ua.nombre_curso }}</span></td>
+                                <td>
+                                    {% if ua.estado == 'Presente' %}
+                                        <span class="ab-chip" style="background: #dcfce7; color: #15803d;">{{ ua.estado }}</span>
+                                    {% elif ua.estado == 'Tardanza' %}
+                                        <span class="ab-chip" style="background: #fef3c7; color: #b45309;">{{ ua.estado }}</span>
+                                    {% elif ua.estado == 'Ausente' %}
+                                        <span class="ab-chip" style="background: #fee2e2; color: #b91c1c;">{{ ua.estado }}</span>
+                                    {% else %}
+                                        <span class="ab-chip" style="background: #e0f2fe; color: #0369a1;">{{ ua.estado }}</span>
+                                    {% endif %}
+                                </td>
+                                <td style="font-size: 12.5px; color: #64748b;">
+                                    {{ ua.observacion or '—' }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p style="color: #94a3b8; font-size: 13px; margin-top: 14px;">
+                Aún no hay registros de asistencia.
+            </p>
+        {% endif %}
+    </div>
+</section>
+
+<!-- =========================================================
+     VISTA 5: COMUNICADOS OFICIALES (TODOS + FILTROS + BUSCADOR)
+     ========================================================= -->
+<section id="panel-comunicados" class="student-tab-panel">
+    <div class="card">
+        <div>
+            <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
+                Comunicados Oficiales de la Institución
+            </h3>
+            <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                Todos los avisos publicados para estudiantes y padres de familia, con filtro por categoría y búsqueda.
+            </p>
+        </div>
+
+        {% if comunicados_recientes %}
+            <div class="com-toolbar">
+                <div class="filter-pills-row" id="filtrosComunicados" style="margin: 0;" aria-label="Filtrar comunicados por categoría">
+                    <button type="button" class="filter-pill-btn active" onclick="filtrarComunicados('todos', this)">
+                        Todos ({{ comunicados_recientes|length }})
+                    </button>
+                    <button type="button" class="filter-pill-btn" onclick="filtrarComunicados('Académico', this)">
+                        Académico
+                    </button>
+                    <button type="button" class="filter-pill-btn" onclick="filtrarComunicados('Reunión', this)">
+                        Reunión
+                    </button>
+                    <button type="button" class="filter-pill-btn" onclick="filtrarComunicados('General', this)">
+                        General
+                    </button>
+                </div>
+
+                <input type="search" id="buscarComunicado" class="com-search-input"
+                       placeholder="Buscar comunicado o palabra clave…"
+                       oninput="aplicarFiltroComunicados()">
+            </div>
+
+            <div id="listaComunicadosCompleta">
+                {% for com in comunicados_recientes %}
+                    {% set cat_com = com.categoria or 'General' %}
+                    <div class="notice-mini {{ cat_com }} comunicado-item"
+                         data-categoria="{{ cat_com }}"
+                         data-texto="{{ (com.titulo ~ ' ' ~ com.mensaje ~ ' ' ~ com.autor ~ ' ' ~ cat_com ~ ' ' ~ (com.fecha_evento or '') ~ ' ' ~ (com.hora_evento or '') ~ ' ' ~ (com.lugar_evento or ''))|lower }}">
+                        <div class="notice-header-row">
+                            <h4>{{ com.titulo }}</h4>
+                            <span class="notice-badge">{{ cat_com }}</span>
+                        </div>
+
+                        {% if com.fecha_evento or com.hora_evento or com.lugar_evento %}
+                            <div class="com-meta-tags">
+                                {% if com.fecha_evento %}
+                                    <span class="com-meta-chip">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                            <line x1="16" y1="2" x2="16" y2="6"/>
+                                            <line x1="8" y1="2" x2="8" y2="6"/>
+                                            <line x1="3" y1="10" x2="21" y2="10"/>
+                                        </svg>
+                                        {{ com.fecha_evento }}
+                                    </span>
+                                {% endif %}
+                                {% if com.hora_evento %}
+                                    <span class="com-meta-chip">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="10"/>
+                                            <polyline points="12 6 12 12 16 14"/>
+                                        </svg>
+                                        {{ com.hora_evento }}
+                                    </span>
+                                {% endif %}
+                                {% if com.lugar_evento %}
+                                    <span class="com-meta-chip">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                            <circle cx="12" cy="10" r="3"/>
+                                        </svg>
+                                        {{ com.lugar_evento }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+
+                        <p>{{ com.mensaje }}</p>
+                        <small>{{ com.autor }} • {{ com.fecha }}</small>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <p id="sinResultadosComunicados" style="display: none; color: #94a3b8; font-size: 13px; margin-top: 14px;">
+                No hay comunicados que coincidan con el filtro seleccionado.
+            </p>
+        {% else %}
+            <p style="color: #94a3b8; font-size: 13px; margin-top: 14px;">
+                No hay comunicados oficiales publicados por el momento.
+            </p>
+        {% endif %}
+    </div>
+</section>
+
+{# Detecta las tareas sin entregar cuya fecha límite sea la más próxima #}
 {% set aviso = namespace(fecha=none, proximas=[], vencidas=0, sin_fecha=0) %}
 {% for tarea in tareas %}
     {% if tarea.id_tarea not in entregas_dict %}
@@ -634,6 +1175,7 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
     {% endif %}
 {% endfor %}
 
+<!-- Asistente virtual flotante (Búho de AulaNova) con recordatorios y chat IA -->
 <details class="buho-panel" id="buho-panel">
     <summary>
         <span class="buho-avatar" aria-hidden="true">🦉</span>
@@ -696,6 +1238,137 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
 </details>
 
 <script>
+    const VISTAS_VALIDAS = ['inicio', 'tareas', 'calificaciones', 'asistencias', 'comunicados'];
+
+    // Alterna entre las pestañas del portal y sincroniza la navegación lateral
+    function activarVista(vistaId, actualizarHash = true) {
+        if (!VISTAS_VALIDAS.includes(vistaId)) {
+            vistaId = 'inicio';
+        }
+
+        document.querySelectorAll('.student-tab-panel').forEach(panel => {
+            panel.classList.toggle('active', panel.id === `panel-${vistaId}`);
+        });
+
+        document.querySelectorAll('[data-student-nav]').forEach(enlace => {
+            enlace.classList.toggle('active', enlace.dataset.studentNav === vistaId);
+        });
+
+        if (actualizarHash && window.location.hash !== `#${vistaId}`) {
+            history.replaceState(null, '', `#${vistaId}`);
+        }
+    }
+
+    // Abre la pestaña correspondiente al hash de la URL (incluidos enlaces a #tarea-ID)
+    function sincronizarDesdeHash() {
+        const hash = window.location.hash.replace('#', '');
+        if (hash.startsWith('tarea-')) {
+            activarVista('tareas', false);
+            const tarjeta = document.getElementById(hash);
+            if (tarjeta) {
+                requestAnimationFrame(() => tarjeta.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+            }
+        } else if (VISTAS_VALIDAS.includes(hash)) {
+            activarVista(hash, false);
+        } else {
+            activarVista('inicio', false);
+        }
+    }
+
+    function imprimirBoleta() {
+        activarVista('calificaciones', false);
+        window.print();
+    }
+
+    let estadoAsistenciaActivo = 'todos';
+
+    function filtrarAsistencias(estado, botonActivo) {
+        estadoAsistenciaActivo = estado;
+        document.querySelectorAll('#filtrosAsistenciaEstado .filter-pill-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        if (botonActivo) botonActivo.classList.add('active');
+        aplicarFiltrosAsistencia();
+    }
+
+    // Filtra la tabla de asistencias combinando estado y curso seleccionado
+    function aplicarFiltrosAsistencia() {
+        const selectorCurso = document.getElementById('filtroCursoAsistencia');
+        const cursoActivo = selectorCurso ? selectorCurso.value : 'todos';
+
+        document.querySelectorAll('#tablaAsistenciasEstudiante tbody tr').forEach(fila => {
+            const coincideEstado =
+                estadoAsistenciaActivo === 'todos' || fila.dataset.estado === estadoAsistenciaActivo;
+            const coincideCurso =
+                cursoActivo === 'todos' || fila.dataset.curso === cursoActivo;
+
+            fila.style.display = (coincideEstado && coincideCurso) ? '' : 'none';
+        });
+    }
+
+    let categoriaComunicadoActiva = 'todos';
+
+    function filtrarComunicados(categoria, botonActivo) {
+        categoriaComunicadoActiva = categoria;
+        document.querySelectorAll('#filtrosComunicados .filter-pill-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        if (botonActivo) botonActivo.classList.add('active');
+        aplicarFiltroComunicados();
+    }
+
+    // Filtra los comunicados por categoría y coincidencia de texto
+    function aplicarFiltroComunicados() {
+        const input = document.getElementById('buscarComunicado');
+        const termino = (input ? input.value : '').trim().toLowerCase();
+        let visibles = 0;
+
+        document.querySelectorAll('#listaComunicadosCompleta .comunicado-item').forEach(item => {
+            const catItem = (item.dataset.categoria || 'General').toLowerCase();
+            const coincideCat =
+                categoriaComunicadoActiva === 'todos' ||
+                catItem === categoriaComunicadoActiva.toLowerCase();
+            const coincideTexto = !termino || (item.dataset.texto || '').includes(termino);
+
+            if (coincideCat && coincideTexto) {
+                item.style.display = '';
+                visibles++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        const mensajeVacio = document.getElementById('sinResultadosComunicados');
+        if (mensajeVacio) {
+            mensajeVacio.style.display = visibles === 0 ? '' : 'none';
+        }
+    }
+
+    // Calcula y muestra el nombre del día de la semana a partir de cada fecha ISO
+    document.querySelectorAll('.asist-dia-semana').forEach(celda => {
+        const fechaStr = celda.dataset.fecha;
+        if (fechaStr) {
+            const fechaObj = new Date(fechaStr + 'T00:00:00');
+            if (!isNaN(fechaObj)) {
+                celda.textContent = new Intl.DateTimeFormat('es-PE', { weekday: 'long' }).format(fechaObj);
+            }
+        }
+    });
+
+    document.querySelectorAll('[data-student-nav]').forEach(enlace => {
+        enlace.addEventListener('click', evento => {
+            const vistaId = enlace.dataset.studentNav;
+            if (document.getElementById(`panel-${vistaId}`)) {
+                evento.preventDefault();
+                activarVista(vistaId);
+            }
+        });
+    });
+
+    window.addEventListener('hashchange', sincronizarDesdeHash);
+    sincronizarDesdeHash();
+
+    // Lógica del asistente virtual flotante (alertas de vencimiento y consultas por fetch)
     (() => {
         const panel = document.getElementById('buho-panel');
         const recordatorio = document.getElementById('buho-recordatorio');
@@ -707,6 +1380,7 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
         const opciones = panel.querySelectorAll('[data-pregunta]');
         let turnoAnterior = null;
 
+        // Abre el panel automáticamente si la entrega más próxima vence hoy o mañana
         if (plazo) {
             const hoy = {{ hoy|tojson }};
             const diferencia = (Date.parse(plazo.dateTime) - Date.parse(hoy)) / 86400000;
@@ -725,8 +1399,17 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
         }
 
         recordatorio.querySelectorAll('a').forEach(enlace => {
-            enlace.addEventListener('click', () => {
+            enlace.addEventListener('click', evento => {
+                evento.preventDefault();
                 panel.open = false;
+                const destinoId = enlace.getAttribute('href').replace('#', '');
+                activarVista('tareas', false);
+                history.replaceState(null, '', `#${destinoId}`);
+                const tarjeta = document.getElementById(destinoId);
+                if (tarjeta) {
+                    tarjeta.focus();
+                    tarjeta.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
             });
         });
 
@@ -743,6 +1426,7 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
             return burbuja;
         }
 
+        // Responde al instante sobre la próxima entrega usando los datos ya cargados en el DOM
         function respuestaDeVencimiento() {
             if (!plazo) {
                 return Array.from(recordatorio.querySelectorAll('p'))
@@ -783,7 +1467,6 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
             agregarMensaje('alumno', 'Tú', pregunta);
             entrada.value = '';
 
-            // La fecha exacta proviene del tablero. Gemini atiende las preguntas abiertas.
             if (esPreguntaDeVencimiento(pregunta)) {
                 const respuesta = respuestaDeVencimiento();
                 agregarMensaje('asistente', 'Búho de AulaNova', respuesta);

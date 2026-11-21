@@ -34,11 +34,26 @@
         }
         .perfil-opciones a:hover,
         .perfil-opciones a:focus { background: #edf4fa; }
+
+        .sidebar-badge {
+            margin-left: auto;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+            background: #fef3c7;
+            color: #b45309;
+        }
+        .nav-item a.active .sidebar-badge {
+            background: #0284c7;
+            color: #ffffff;
+        }
     </style>
 
     {% block extra_style %}{% endblock %}
 </head>
 <body>
+    {# Macros reutilizables para renderizar los íconos SVG y enlaces del menú lateral #}
     {% macro icono(tipo) %}
     <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24"
          fill="none" stroke="currentColor" stroke-width="2"
@@ -54,7 +69,7 @@
             <circle cx="9" cy="7" r="4"/>
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M17 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-4"/>
         {% elif tipo == 'cursos' %}
-            <path d="M2 3h6a4 4 0 0 1 4 4v14a4 4 0 0 0-4-3H2zM22 3h-6a4 4 0 0 0-4 4v14a4 4 0 0 1 4-3h6z"/>
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-4-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 4-3h6z"/>
         {% elif tipo == 'asistencia' %}
             <rect x="3" y="5" width="18" height="16" rx="2"/>
             <path d="M7 3v4M17 3v4M3 10h18M9 15l2 2 4-4"/>
@@ -69,14 +84,23 @@
     </svg>
     {% endmacro %}
 
-    {% macro enlace(ruta, texto, dibujo) %}
+    {% macro enlace(ruta, texto, dibujo, tab_id='', badge_count=none) %}
     <li class="nav-item">
-        <a href="{{ ruta }}" class="{{ 'active' if request.path == ruta else '' }}">
-            <span class="nav-link-content">{{ icono(dibujo) }} {{ texto }}</span>
+        <a href="{{ ruta }}"
+           {% if tab_id %}data-student-nav="{{ tab_id }}"{% endif %}
+           class="{{ 'active' if (request.path == ruta and not tab_id) else '' }}">
+            <span class="nav-link-content" style="width: 100%; display: flex; align-items: center; gap: 10px;">
+                {{ icono(dibujo) }}
+                <span>{{ texto }}</span>
+                {% if badge_count and badge_count > 0 %}
+                    <span class="sidebar-badge">{{ badge_count }}</span>
+                {% endif %}
+            </span>
         </a>
     </li>
     {% endmacro %}
 
+    <!-- Barra lateral fija con buscador de módulos y navegación filtrada por rol -->
     <aside class="sidebar">
         <div class="sidebar-header">
             <img src="{{ url_for('static', filename='logo_colegio.jpg') }}"
@@ -99,6 +123,7 @@
             </div>
         </div>
 
+        {# Renderiza las opciones del menú según el rol activo: 1=Admin, 2=Docente, 3=Estudiante #}
         <ul class="nav-menu" id="sidebarMenu">
             {% if session.get('id_rol') == 1 %}
                 {{ enlace('/dashboard', 'Tablero', 'tablero') }}
@@ -139,12 +164,16 @@
                 {{ enlace('/comunicados', 'Comunicados', 'comunicados') }}
 
             {% elif session.get('id_rol') == 3 %}
-                {{ enlace('/dashboard_estudiante', 'Mi Aula Virtual', 'alumnos') }}
-                {{ enlace('/comunicados', 'Comunicados Oficiales', 'comunicados') }}
+                {{ enlace('/dashboard_estudiante#inicio', 'Mi Aula Virtual', 'tablero', 'inicio') }}
+                {{ enlace('/dashboard_estudiante#tareas', 'Tareas y Entregas', 'cursos', 'tareas', tareas_pendientes if tareas_pendientes is defined else none) }}
+                {{ enlace('/dashboard_estudiante#calificaciones', 'Mis Calificaciones', 'notas', 'calificaciones') }}
+                {{ enlace('/dashboard_estudiante#asistencias', 'Asistencias', 'asistencia', 'asistencias') }}
+                {{ enlace('/dashboard_estudiante#comunicados', 'Comunicados Oficiales', 'comunicados', 'comunicados') }}
             {% endif %}
         </ul>
     </aside>
 
+    <!-- Contenedor principal: barra superior de sesión, alertas flash y vista hija -->
     <div class="main-wrapper">
         <header class="topbar">
             <div class="topbar-title">
@@ -187,6 +216,7 @@
             document.getElementById(id).classList.toggle('open');
         }
 
+        // Filtra en vivo las opciones visibles del menú lateral
         function filtrarMenu() {
             const filtro = document.getElementById('menuSearch').value.toLowerCase();
             document.querySelectorAll('#sidebarMenu > li').forEach(item => {
@@ -196,6 +226,7 @@
 
         const perfil = document.getElementById('menuPerfil');
 
+        // Cierra el desplegable del perfil al hacer clic fuera o presionar Escape
         document.addEventListener('click', event => {
             if (!perfil.contains(event.target)) perfil.open = false;
         });
@@ -207,6 +238,7 @@
             }
         });
 
+        // Recarga la página si el usuario vuelve usando el historial (bfcache) para validar sesión
         window.addEventListener('pageshow', event => {
             const entrada = performance.getEntriesByType('navigation')[0];
             if (event.persisted || (entrada && entrada.type === 'back_forward')) {

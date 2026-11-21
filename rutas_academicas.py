@@ -2,6 +2,7 @@
 import csv
 import hashlib
 import io
+import json
 import os
 import re
 import sqlite3
@@ -9,6 +10,8 @@ import unicodedata
 from collections import Counter
 from contextlib import closing
 from datetime import datetime
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 # Flask recibe los formularios, abre las pantallas y recuerda la sesión del usuario.
 from flask import (
@@ -42,8 +45,6 @@ from comunicados_ia import comunicados_ia
 app.register_blueprint(comunicados_ia)
 
 # Grados que pueden elegirse al registrar alumnos y cursos.
-# Se conserva el nombre completo para distinguir, por ejemplo,
-# 1ro de Primaria A de 1ro de Secundaria A.
 GRADOS_POR_NIVEL = {
     'Primaria': (
         '1ro de Primaria',
@@ -64,8 +65,6 @@ GRADOS_POR_NIVEL = {
 
 SECCIONES = ('A', 'B', 'C', 'D', 'E')
 
-# Grados que se aceptan al importar alumnos desde una plantilla.
-# Si el CSV dice "6to de primaria", se guarda como "6to de Primaria".
 GRADOS_CSV = {
     grado.lower(): grado
     for grados in GRADOS_POR_NIVEL.values()
@@ -73,7 +72,6 @@ GRADOS_CSV = {
 }
 
 
-# Pone las mismas opciones a disposición de los formularios y filtros HTML.
 @app.context_processor
 def opciones_de_salon():
     return {
@@ -82,7 +80,6 @@ def opciones_de_salon():
     }
 
 
-# Comprueba el grado y todas las secciones antes de guardar un alumno o curso.
 def salon_valido(grado, secciones):
     return (
         GRADOS_CSV.get(grado.lower()) == grado
@@ -91,9 +88,9 @@ def salon_valido(grado, secciones):
     )
 
 
-# Pide al navegador que vuelva a cargar las pantallas al regresar a ellas.
 @app.after_request
 def evitar_cache_navegador(response):
+    # Evita que el navegador sirva vistas privadas desde caché al retroceder
     if not request.path.startswith('/static/'):
         response.headers['Cache-Control'] = (
             'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
@@ -103,7 +100,6 @@ def evitar_cache_navegador(response):
     return response
 
 
-# Al abrir AulaNova, muestra el login o lleva al usuario al tablero de su rol.
 @app.route('/')
 def index():
     if 'id_rol' in session:
@@ -116,7 +112,6 @@ def index():
     return render_template('login.html')
 
 
-# Acceso definido en este archivo. Busca la cuenta por correo o DNI y comprueba la clave.
 @app.route('/login', methods=['POST'])
 def login():
     correo = request.form['correo']
@@ -142,14 +137,12 @@ def login():
     return render_template('login.html', error='Correo o DNI / Contraseña incorrectos.')
 
 
-# Cierra la sesión y devuelve al usuario a la pantalla de ingreso.
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('index'))
 
 
-# Cuenta los alumnos, docentes y cursos que aparecen en el tablero del director.
 @app.route('/dashboard')
 def dashboard():
     if session.get('id_rol') != 1:
@@ -174,7 +167,6 @@ def dashboard():
     )
 
 
-# Prepara las tarjetas de los cursos del docente y cuenta los trabajos que le faltan revisar.
 @app.route('/dashboard_docente')
 def dashboard_docente():
     if session.get('id_rol') != 2:
@@ -201,7 +193,7 @@ def dashboard_docente():
             WHERE id_rol = 3 AND grado = ? AND seccion = ?
         ''', (c['grado'], c['seccion'])).fetchone()[0]
 
-        # Si el docente dicta dos cursos al mismo salón, sus alumnos se cuentan una sola vez.
+        # Suma la matrícula una sola vez por salón aunque el docente dicte varios cursos ahí
         llave_salon = (c['grado'], c['seccion'])
         if llave_salon not in salones_vistos:
             salones_vistos.add(llave_salon)
@@ -211,7 +203,6 @@ def dashboard_docente():
             'SELECT COUNT(*) FROM Tareas WHERE id_curso = ?', (c['id_curso'],)
         ).fetchone()[0]
 
-        # Una entrega recibida con la nota vacía sigue pendiente de revisión.
         pendientes_curso = conn.execute('''
             SELECT COUNT(*) FROM EntregasTareas e
             JOIN Tareas t ON e.id_tarea = t.id_tarea
@@ -219,7 +210,6 @@ def dashboard_docente():
         ''', (c['id_curso'],)).fetchone()[0]
         total_entregas_pendientes += pendientes_curso
 
-        # El indicador de esta tarjeta muestra el avance de notas del primer bimestre.
         notas_b1 = conn.execute('''
             SELECT COUNT(*) FROM Calificaciones
             WHERE id_curso = ? AND periodo = 'Bimestre 1' AND nota IS NOT NULL
@@ -253,7 +243,6 @@ def dashboard_docente():
     )
 
 
-# Reúne las tareas, notas, asistencias y avisos que la familia ve al entrar.
 @app.route('/dashboard_estudiante')
 def dashboard_estudiante():
     if session.get('id_rol') != 3:
@@ -264,7 +253,6 @@ def dashboard_estudiante():
         'SELECT * FROM Usuarios WHERE id_usuario = ?', (session['id_usuario'],)
     ).fetchone()
 
-    # El alumno ve los cursos que corresponden a su grado y sección.
     cursos = conn.execute('''
         SELECT c.*, u.nombres AS docente_nombres, u.apellidos AS docente_apellidos
         FROM Cursos c
@@ -285,13 +273,11 @@ def dashboard_estudiante():
             ORDER BY t.id_tarea DESC
         ''', cursos_ids).fetchall()
 
-    # Trae las calificaciones guardadas para este alumno.
     raw_notas = conn.execute('''
         SELECT id_curso, periodo, nota FROM Calificaciones WHERE id_alumno = ?
     ''', (usuario['id_usuario'],)).fetchall()
     notas_alumno = {(n['id_curso'], n['periodo']): n['nota'] for n in raw_notas}
 
-    # Las notas vacías quedan fuera del promedio general. Un cero sí cuenta.
     notas_validas = [n['nota'] for n in raw_notas if n['nota'] is not None]
     promedio_general = round(sum(notas_validas) / len(notas_validas), 1) if notas_validas else None
 
@@ -305,12 +291,11 @@ def dashboard_estudiante():
         promedios_curso[c['id_curso']] = round(sum(valores) / len(valores), 1) if valores else None
 
     raw_entregas = conn.execute('''
-        SELECT id_tarea, archivo_alumno, fecha_entrega, nota_tarea
+        SELECT id_entrega, id_tarea, archivo_alumno, fecha_entrega, nota_tarea, comentario_docente
         FROM EntregasTareas WHERE id_alumno = ?
     ''', (usuario['id_usuario'],)).fetchall()
 
-    # Relaciona cada entrega con su tarea para saber cuáles le faltan al alumno.
-    entregas_dict = {e['id_tarea']: e for e in raw_entregas}
+    entregas_dict = {e['id_tarea']: dict(e) for e in raw_entregas}
     tareas_pendientes = sum(1 for t in tareas if t['id_tarea'] not in entregas_dict)
 
     asist_stats = conn.execute('''
@@ -324,8 +309,7 @@ def dashboard_estudiante():
     ''', (usuario['id_usuario'],)).fetchone()
 
     total_asist = asist_stats['total'] or 0
-
-    # El porcentaje de asistencia incluye presentes, tardanzas y justificaciones.
+    # Tardanzas y faltas justificadas se contabilizan como asistencia efectiva en el porcentaje
     presentes_efectivos = (
         (asist_stats['presente'] or 0) + (asist_stats['tardanza'] or 0)
         + (asist_stats['justificada'] or 0)
@@ -333,13 +317,18 @@ def dashboard_estudiante():
     pct_asistencia = round(presentes_efectivos / total_asist * 100) if total_asist else 100
 
     ultimas_asistencias = conn.execute('''
-        SELECT fecha, estado, observacion FROM Asistencia
-        WHERE id_alumno = ? ORDER BY fecha DESC LIMIT 6
+        SELECT a.fecha, a.estado, a.observacion, a.id_curso,
+               COALESCE(c.nombre_curso, 'Asistencia General') AS nombre_curso
+        FROM Asistencia a
+        LEFT JOIN Cursos c ON a.id_curso = c.id_curso
+        WHERE a.id_alumno = ?
+        ORDER BY a.fecha DESC, nombre_curso ASC
+        LIMIT 30
     ''', (usuario['id_usuario'],)).fetchall()
 
     comunicados_recientes = conn.execute('''
         SELECT * FROM Comunicados WHERE destinatario != 'Solo Docentes'
-        ORDER BY id_comunicado DESC LIMIT 2
+        ORDER BY id_comunicado DESC
     ''').fetchall()
 
     hoy = datetime.now().strftime('%Y-%m-%d')
@@ -356,7 +345,6 @@ def dashboard_estudiante():
     )
 
 
-# Guarda el archivo que envía el alumno y registra a qué tarea pertenece.
 @app.route('/estudiante/entregar-tarea/<int:id_tarea>', methods=['POST'])
 def entregar_tarea(id_tarea):
     if session.get('id_rol') != 3:
@@ -365,15 +353,11 @@ def entregar_tarea(id_tarea):
     archivo = request.files.get('archivo_alumno')
     if archivo and archivo.filename:
         filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{secure_filename(archivo.filename)}"
-
-        # Guarda el archivo en la carpeta de entregas antes de registrar sus datos.
         archivo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         fecha_actual = datetime.now().strftime('%Y-%m-%d %H:%M')
         id_alumno = session['id_usuario']
 
         conn = get_db_connection()
-
-        # Si el alumno vuelve a entregar la misma tarea, actualiza el archivo y la fecha.
         conn.execute('''
             INSERT INTO EntregasTareas (id_tarea, id_alumno, archivo_alumno, fecha_entrega)
             VALUES (?, ?, ?, ?)
@@ -389,7 +373,6 @@ def entregar_tarea(id_tarea):
     return redirect(url_for('dashboard_estudiante'))
 
 
-# Muestra la lista de alumnos con los filtros elegidos en pantalla.
 @app.route('/alumnos')
 def gestionar_alumnos():
     if session.get('id_rol') != 1:
@@ -405,7 +388,6 @@ def gestionar_alumnos():
     '''
     params = []
 
-    # Agrega a la búsqueda los filtros que el director eligió.
     if grado_filtro:
         query += ' AND u.grado = ?'
         params.append(grado_filtro)
@@ -429,7 +411,6 @@ def gestionar_alumnos():
     )
 
 
-# Crea la cuenta del alumno y registra su grado y sección.
 @app.route('/crear-alumno', methods=['POST'])
 def crear_alumno():
     if session.get('id_rol') != 1:
@@ -445,7 +426,6 @@ def crear_alumno():
         flash('Selecciona un grado de primaria o secundaria y una sección de la A a la E.')
         return redirect(url_for('gestionar_alumnos'))
 
-    # Forma el correo institucional usando el DNI del alumno.
     correo = f'{dni}@guadalupe.edu.pe'
 
     conn = get_db_connection()
@@ -463,7 +443,6 @@ def crear_alumno():
     return redirect(url_for('gestionar_alumnos'))
 
 
-# Actualiza la ficha del alumno seleccionado por el director.
 @app.route('/editar-alumno/<int:id_usuario>', methods=['POST'])
 def editar_alumno(id_usuario):
     if session.get('id_rol') != 1:
@@ -496,7 +475,6 @@ def editar_alumno(id_usuario):
     return redirect(url_for('gestionar_alumnos'))
 
 
-# Elimina de Usuarios la cuenta seleccionada si pertenece a un alumno.
 @app.route('/eliminar-alumno/<int:id_usuario>', methods=['POST'])
 def eliminar_alumno(id_usuario):
     if session.get('id_rol') != 1:
@@ -510,12 +488,12 @@ def eliminar_alumno(id_usuario):
     return redirect(url_for('gestionar_alumnos'))
 
 
-# Prepara el CSV de alumnos con sus encabezados y dos filas de ejemplo.
 @app.route('/descargar-plantilla')
 def descargar_plantilla():
     if session.get('id_rol') != 1:
         return redirect(url_for('index'))
 
+    # Agrega BOM UTF-8 y punto y coma para que Excel en español abra columnas sin mezclarlas
     output = io.StringIO()
     output.write('\ufeff')
     writer = csv.writer(output, delimiter=';')
@@ -528,9 +506,6 @@ def descargar_plantilla():
     )
 
 
-# Importación de alumnos y docentes: revisar primero, confirmar después.
-
-# Pantalla que enseña cómo quedará la importación y qué filas tienen errores.
 VISTA_PREVIA_CSV = """
 {% extends "layout.html" %}
 {% block title %}Revisar importación - AulaNova{% endblock %}
@@ -608,13 +583,11 @@ VISTA_PREVIA_CSV = """
 """
 
 
-# Revisa cada fila de la plantilla y anota qué datos necesitan corrección.
 def revisar_plantilla_csv(texto, tipo, conn):
     campos = ['dni', 'nombres', 'apellidos']
     if tipo == 'alumnos':
         campos += ['grado', 'seccion']
 
-    # Lee el encabezado para reconocer si las columnas usan coma o punto y coma.
     primera_linea = texto.partition('\n')[0]
     delimitador = ';' if ';' in primera_linea else ','
     lector = csv.reader(io.StringIO(texto, newline=''), delimiter=delimitador, strict=True)
@@ -628,7 +601,6 @@ def revisar_plantilla_csv(texto, tipo, conn):
 
     filas = []
 
-    # Revisa las filas y guarda el número de línea para ubicar el error en Excel.
     for celdas in lector:
         if not any(celda.strip() for celda in celdas):
             continue
@@ -673,7 +645,7 @@ def revisar_plantilla_csv(texto, tipo, conn):
     if not filas:
         raise ValueError('La plantilla está vacía. Agrega al menos una fila de datos.')
 
-    # Busca DNI repetidos dentro del archivo antes de compararlos con los usuarios registrados.
+    # Verifica duplicados dentro del mismo archivo y contra usuarios ya existentes
     repeticiones = Counter(datos['dni'] for _, datos, _ in filas)
     usuarios = conn.execute('SELECT dni, correo FROM Usuarios').fetchall()
     documentos = {str(usuario['dni']) for usuario in usuarios}
@@ -688,7 +660,6 @@ def revisar_plantilla_csv(texto, tipo, conn):
     return campos + ['correo'], filas
 
 
-# Primero muestra la vista previa del CSV. Al confirmar, revisa los datos y guarda las cuentas.
 def procesar_importacion(tipo):
     if session.get('id_rol') != 1:
         return redirect(url_for('index'))
@@ -707,10 +678,8 @@ def procesar_importacion(tipo):
                 raise ValueError('Selecciona una plantilla con extensión .csv.')
             texto = archivo.read().decode('utf-8-sig')
 
-        # El navegador y Excel pueden representar los saltos de línea de forma distinta.
         texto = texto.replace('\r\n', '\n').replace('\r', '\n')
-
-        # Guarda una huella del contenido para comprobar que se confirme la misma plantilla revisada.
+        # El hash garantiza que se importe exactamente el contenido validado en la vista previa
         huella = hashlib.sha256(texto.encode('utf-8')).hexdigest()
 
         if confirmar and session.get(clave_revision) != huella:
@@ -718,10 +687,8 @@ def procesar_importacion(tipo):
 
         with closing(get_db_connection()) as conn, conn:
             if confirmar:
-                # Se revisa nuevamente bajo bloqueo de escritura para evitar duplicados.
                 conn.execute('BEGIN IMMEDIATE')
 
-            # Vuelve a validar las filas antes de decidir si se pueden importar.
             campos, filas = revisar_plantilla_csv(texto, tipo, conn)
             invalidas = sum(bool(errores) for _, _, errores in filas)
             usuario = conn.execute(
@@ -729,7 +696,6 @@ def procesar_importacion(tipo):
             ).fetchone()
 
             if confirmar and invalidas == 0:
-                # Si se confirma la importación y todas las filas son válidas, crea las cuentas.
                 rol = 3 if tipo == 'alumnos' else 2
                 for _, datos, _ in filas:
                     conn.execute('''
@@ -752,7 +718,6 @@ def procesar_importacion(tipo):
         else:
             session[clave_revision] = huella
 
-        # Usa nombres de columna fáciles de leer en la vista previa.
         etiquetas = {
             'dni': 'DNI', 'nombres': 'Nombres', 'apellidos': 'Apellidos',
             'grado': 'Grado', 'seccion': 'Sección', 'correo': 'Correo institucional'
@@ -775,13 +740,11 @@ def procesar_importacion(tipo):
     return redirect(volver)
 
 
-# Abre la importación con los campos de alumno, incluidos grado y sección.
 @app.route('/importar-alumnos', methods=['POST'])
 def importar_alumnos():
     return procesar_importacion('alumnos')
 
 
-# Lista los docentes e indica cuántos cursos tiene asignados cada uno.
 @app.route('/docentes')
 def gestionar_docentes():
     if session.get('id_rol') != 1:
@@ -802,7 +765,6 @@ def gestionar_docentes():
     return render_template('Admin/docentes.html', docentes=docentes, usuario=usuario)
 
 
-# Crea una cuenta de docente con los datos ingresados en el formulario.
 @app.route('/crear-docente', methods=['POST'])
 def crear_docente():
     if session.get('id_rol') != 1:
@@ -828,7 +790,6 @@ def crear_docente():
     return redirect(url_for('gestionar_docentes'))
 
 
-# Actualiza los datos del docente y el correo institucional que se forma con su DNI.
 @app.route('/editar-docente/<int:id_usuario>', methods=['POST'])
 def editar_docente(id_usuario):
     if session.get('id_rol') != 1:
@@ -854,12 +815,12 @@ def editar_docente(id_usuario):
     return redirect(url_for('gestionar_docentes'))
 
 
-# Deja los cursos sin profesor asignado antes de eliminar la cuenta del docente.
 @app.route('/eliminar-docente/<int:id_usuario>', methods=['POST'])
 def eliminar_docente(id_usuario):
     if session.get('id_rol') != 1:
         return redirect(url_for('index'))
 
+    # Desvincula al docente de sus cursos antes de borrar su cuenta para no dejar referencias rotas
     conn = get_db_connection()
     conn.execute('UPDATE Cursos SET id_docente = NULL WHERE id_docente = ?', (id_usuario,))
     conn.execute('DELETE FROM Usuarios WHERE id_usuario = ? AND id_rol = 2', (id_usuario,))
@@ -869,7 +830,6 @@ def eliminar_docente(id_usuario):
     return redirect(url_for('gestionar_docentes'))
 
 
-# Prepara el CSV de docentes con las columnas DNI, nombres y apellidos.
 @app.route('/descargar-plantilla-docentes')
 def descargar_plantilla_docentes():
     if session.get('id_rol') != 1:
@@ -887,13 +847,11 @@ def descargar_plantilla_docentes():
     )
 
 
-# Usa la revisión de plantillas para registrar las cuentas de los docentes.
 @app.route('/importar-docentes', methods=['POST'])
 def importar_docentes():
     return procesar_importacion('docentes')
 
 
-# Carga los cursos por salón y la lista de docentes disponibles para asignar.
 @app.route('/cursos')
 def gestionar_cursos():
     if session.get('id_rol') != 1:
@@ -916,7 +874,6 @@ def gestionar_cursos():
     return render_template('Admin/cursos.html', cursos=cursos, docentes=docentes, usuario=usuario)
 
 
-# Registra el curso en cada sección marcada y avisa cuáles ya lo tenían.
 @app.route('/crear-curso', methods=['POST'])
 def crear_curso():
     if session.get('id_rol') != 1:
@@ -939,7 +896,7 @@ def crear_curso():
     creados = []
     duplicados = []
 
-    # Intenta crear el curso por separado en cada sección seleccionada.
+    # Intenta registrar el curso por cada sección marcada y separa los ya existentes
     for sec in secciones:
         try:
             conn.execute('''
@@ -951,7 +908,6 @@ def crear_curso():
     conn.commit()
     conn.close()
 
-    # Prepara el mensaje según las secciones creadas y las que ya tenían el curso.
     if creados and not duplicados:
         flash(f'Curso "{nombre_curso}" ({grado}) asignado correctamente a las secciones: {", ".join(creados)}.')
     elif creados and duplicados:
@@ -961,7 +917,6 @@ def crear_curso():
     return redirect(url_for('gestionar_cursos'))
 
 
-# Guarda los cambios de nombre, grado, sección y docente del curso.
 @app.route('/editar-curso/<int:id_curso>', methods=['POST'])
 def editar_curso(id_curso):
     if session.get('id_rol') != 1:
@@ -991,12 +946,12 @@ def editar_curso(id_curso):
     return redirect(url_for('gestionar_cursos'))
 
 
-# Borra las entregas, tareas y calificaciones del curso antes de eliminarlo.
 @app.route('/eliminar-curso/<int:id_curso>', methods=['POST'])
 def eliminar_curso(id_curso):
     if session.get('id_rol') != 1:
         return redirect(url_for('index'))
 
+    # Elimina entregas, tareas, notas y asistencias ligadas al curso antes de borrarlo
     conn = get_db_connection()
     tareas_curso = conn.execute(
         'SELECT id_tarea FROM Tareas WHERE id_curso = ?', (id_curso,)
@@ -1005,6 +960,7 @@ def eliminar_curso(id_curso):
         conn.execute('DELETE FROM EntregasTareas WHERE id_tarea = ?', (tarea['id_tarea'],))
     conn.execute('DELETE FROM Tareas WHERE id_curso = ?', (id_curso,))
     conn.execute('DELETE FROM Calificaciones WHERE id_curso = ?', (id_curso,))
+    conn.execute('DELETE FROM Asistencia WHERE id_curso = ?', (id_curso,))
     conn.execute('DELETE FROM Cursos WHERE id_curso = ?', (id_curso,))
     conn.commit()
     conn.close()
@@ -1012,7 +968,6 @@ def eliminar_curso(id_curso):
     return redirect(url_for('gestionar_cursos'))
 
 
-# Abre la asistencia del salón para el docente. Al director lo lleva al reporte.
 @app.route('/asistencia')
 def gestionar_asistencia():
     if session.get('id_rol') == 1:
@@ -1024,61 +979,101 @@ def gestionar_asistencia():
     usuario = conn.execute(
         'SELECT * FROM Usuarios WHERE id_usuario = ?', (session['id_usuario'],)
     ).fetchone()
-    grados_docente = [r['grado'] for r in conn.execute('''
-        SELECT DISTINCT grado FROM Cursos WHERE id_docente = ? ORDER BY grado ASC
-    ''', (session['id_usuario'],)).fetchall()]
 
-    grado_default = grados_docente[0] if grados_docente else '1ro de Secundaria'
-    grado = request.args.get('grado', grado_default)
-    seccion = request.args.get('seccion', 'A')
+    cursos_docente = conn.execute('''
+        SELECT id_curso, nombre_curso, grado, seccion
+        FROM Cursos
+        WHERE id_docente = ?
+        ORDER BY grado ASC, seccion ASC, nombre_curso ASC
+    ''', (session['id_usuario'],)).fetchall()
+
     fecha = request.args.get('fecha', datetime.now().strftime('%Y-%m-%d'))
+    id_curso_param = request.args.get('id_curso', type=int) or request.args.get('curso', type=int)
+    grado_param = request.args.get('grado', '')
+    seccion_param = request.args.get('seccion', '')
 
-    alumnos = conn.execute('''
-        SELECT u.id_usuario, u.dni, u.nombres, u.apellidos,
-            (SELECT estado FROM Asistencia WHERE id_alumno = u.id_usuario AND fecha = ?) AS estado_asistencia,
-            (SELECT observacion FROM Asistencia WHERE id_alumno = u.id_usuario AND fecha = ?) AS observacion_asistencia
-        FROM Usuarios u WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
-        ORDER BY u.apellidos ASC, u.nombres ASC
-    ''', (fecha, fecha, grado, seccion)).fetchall()
+    curso_activo = None
+    if cursos_docente:
+        if id_curso_param:
+            curso_activo = next((c for c in cursos_docente if c['id_curso'] == id_curso_param), None)
+        if not curso_activo and grado_param and seccion_param:
+            curso_activo = next(
+                (c for c in cursos_docente if c['grado'] == grado_param and c['seccion'] == seccion_param),
+                None
+            )
+        if not curso_activo:
+            curso_activo = cursos_docente[0]
+
+    alumnos = []
+    if curso_activo:
+        alumnos = conn.execute('''
+            SELECT u.id_usuario, u.dni, u.nombres, u.apellidos,
+                (SELECT estado FROM Asistencia
+                 WHERE id_alumno = u.id_usuario AND id_curso = ? AND fecha = ?) AS estado_asistencia,
+                (SELECT observacion FROM Asistencia
+                 WHERE id_alumno = u.id_usuario AND id_curso = ? AND fecha = ?) AS observacion_asistencia
+            FROM Usuarios u
+            WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+            ORDER BY u.apellidos ASC, u.nombres ASC
+        ''', (
+            curso_activo['id_curso'], fecha,
+            curso_activo['id_curso'], fecha,
+            curso_activo['grado'], curso_activo['seccion']
+        )).fetchall()
+
     conn.close()
 
     return render_template(
-        'Docente/asistencia.html', alumnos=alumnos, usuario=usuario, grado=grado,
-        seccion=seccion, fecha=fecha, grados_docente=grados_docente
+        'Docente/asistencia.html',
+        alumnos=alumnos,
+        usuario=usuario,
+        cursos_docente=cursos_docente,
+        curso_activo=curso_activo,
+        fecha=fecha
     )
 
 
-# Guarda el estado y la observación de cada alumno para la fecha seleccionada.
 @app.route('/guardar-asistencia', methods=['POST'])
 def guardar_asistencia():
     if session.get('id_rol') != 2:
         return redirect(url_for('index'))
 
     fecha = request.form['fecha']
-    grado = request.form['grado']
-    seccion = request.form['seccion']
+    id_curso = request.form.get('id_curso', type=int)
 
     conn = get_db_connection()
+    curso = conn.execute('''
+        SELECT id_curso, grado, seccion, nombre_curso
+        FROM Cursos
+        WHERE id_curso = ? AND id_docente = ?
+    ''', (id_curso, session['id_usuario'])).fetchone()
+
+    if not curso:
+        conn.close()
+        flash('No tienes permiso para registrar asistencia en este curso.')
+        return redirect(url_for('gestionar_asistencia'))
+
     alumnos = conn.execute('''
         SELECT id_usuario FROM Usuarios WHERE id_rol = 3 AND grado = ? AND seccion = ?
-    ''', (grado, seccion)).fetchall()
+    ''', (curso['grado'], curso['seccion'])).fetchall()
 
-    # Si ya existe asistencia para ese alumno y esa fecha, actualiza el registro.
     for alumno in alumnos:
         id_alumno = alumno['id_usuario']
         estado = request.form.get(f'estado_{id_alumno}', 'Presente')
         observacion = request.form.get(f'observacion_{id_alumno}', '').strip()
         conn.execute('''
-            INSERT INTO Asistencia (id_alumno, fecha, estado, observacion) VALUES (?, ?, ?, ?)
-            ON CONFLICT(id_alumno, fecha) DO UPDATE SET estado = ?, observacion = ?
-        ''', (id_alumno, fecha, estado, observacion, estado, observacion))
+            INSERT INTO Asistencia (id_alumno, id_curso, fecha, estado, observacion)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(id_alumno, id_curso, fecha)
+            DO UPDATE SET estado = ?, observacion = ?
+        ''', (id_alumno, curso['id_curso'], fecha, estado, observacion, estado, observacion))
+
     conn.commit()
     conn.close()
-    flash('Asistencia registrada y guardada correctamente.')
-    return redirect(url_for('gestionar_asistencia', grado=grado, seccion=seccion, fecha=fecha))
+    flash(f'Asistencia de {curso["nombre_curso"]} guardada correctamente.')
+    return redirect(url_for('gestionar_asistencia', id_curso=curso['id_curso'], fecha=fecha))
 
 
-# Muestra al director el resumen del salón y el detalle de asistencia de un día.
 @app.route('/reporte-asistencia')
 def reporte_asistencia():
     if session.get('id_rol') != 1:
@@ -1088,41 +1083,100 @@ def reporte_asistencia():
     usuario = conn.execute(
         'SELECT * FROM Usuarios WHERE id_usuario = ?', (session['id_usuario'],)
     ).fetchone()
-    grado = request.args.get('grado', '1ro de Secundaria')
+    grado = request.args.get('grado', '1ro de Primaria')
     seccion = request.args.get('seccion', 'A')
     fecha = request.args.get('fecha', datetime.now().strftime('%Y-%m-%d'))
+    id_curso = request.args.get('id_curso', type=int)
 
-    # Resume las asistencias de los alumnos del salón.
-    reporte = conn.execute('''
-        SELECT u.dni, u.nombres, u.apellidos,
-            SUM(CASE WHEN a.estado = 'Presente' THEN 1 ELSE 0 END) AS total_presente,
-            SUM(CASE WHEN a.estado = 'Tardanza' THEN 1 ELSE 0 END) AS total_tardanza,
-            SUM(CASE WHEN a.estado = 'Ausente' THEN 1 ELSE 0 END) AS total_ausente,
-            SUM(CASE WHEN a.estado = 'Tardanza Justificada' THEN 1 ELSE 0 END) AS total_tj,
-            SUM(CASE WHEN a.estado = 'Falta Justificada' THEN 1 ELSE 0 END) AS total_fj,
-            COUNT(a.id_asistencia) AS total_registros
-        FROM Usuarios u LEFT JOIN Asistencia a ON u.id_usuario = a.id_alumno
-        WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
-        GROUP BY u.id_usuario ORDER BY u.apellidos ASC, u.nombres ASC
+    cursos_salon = conn.execute('''
+        SELECT c.id_curso, c.nombre_curso, u.nombres AS docente_nombres, u.apellidos AS docente_apellidos
+        FROM Cursos c
+        LEFT JOIN Usuarios u ON c.id_docente = u.id_usuario
+        WHERE c.grado = ? AND c.seccion = ?
+        ORDER BY c.nombre_curso ASC
     ''', (grado, seccion)).fetchall()
 
-    # Busca el estado y la observación registrados en la fecha elegida.
-    detalle_fecha = conn.execute('''
-        SELECT u.dni, u.nombres, u.apellidos, a.estado, a.observacion
-        FROM Usuarios u
-        LEFT JOIN Asistencia a ON u.id_usuario = a.id_alumno AND a.fecha = ?
-        WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
-        ORDER BY u.apellidos ASC, u.nombres ASC
-    ''', (fecha, grado, seccion)).fetchall()
+    if id_curso and not any(c['id_curso'] == id_curso for c in cursos_salon):
+        id_curso = None
+
+    if id_curso:
+        reporte = conn.execute('''
+            SELECT u.dni, u.nombres, u.apellidos,
+                SUM(CASE WHEN a.estado = 'Presente' THEN 1 ELSE 0 END) AS total_presente,
+                SUM(CASE WHEN a.estado = 'Tardanza' THEN 1 ELSE 0 END) AS total_tardanza,
+                SUM(CASE WHEN a.estado = 'Ausente' THEN 1 ELSE 0 END) AS total_ausente,
+                SUM(CASE WHEN a.estado = 'Tardanza Justificada' THEN 1 ELSE 0 END) AS total_tj,
+                SUM(CASE WHEN a.estado = 'Falta Justificada' THEN 1 ELSE 0 END) AS total_fj,
+                COUNT(a.id_asistencia) AS total_registros
+            FROM Usuarios u
+            LEFT JOIN Asistencia a ON u.id_usuario = a.id_alumno AND a.id_curso = ?
+            WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+            GROUP BY u.id_usuario
+            ORDER BY u.apellidos ASC, u.nombres ASC
+        ''', (id_curso, grado, seccion)).fetchall()
+
+        detalle_fecha = conn.execute('''
+            SELECT u.dni, u.nombres, u.apellidos, a.estado, a.observacion,
+                   COALESCE(c.nombre_curso, 'Sin curso') AS nombre_curso
+            FROM Usuarios u
+            LEFT JOIN Asistencia a ON u.id_usuario = a.id_alumno AND a.fecha = ? AND a.id_curso = ?
+            LEFT JOIN Cursos c ON a.id_curso = c.id_curso
+            WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+            ORDER BY u.apellidos ASC, u.nombres ASC
+        ''', (fecha, id_curso, grado, seccion)).fetchall()
+    else:
+        reporte = conn.execute('''
+            SELECT u.dni, u.nombres, u.apellidos,
+                SUM(CASE WHEN a.estado = 'Presente' THEN 1 ELSE 0 END) AS total_presente,
+                SUM(CASE WHEN a.estado = 'Tardanza' THEN 1 ELSE 0 END) AS total_tardanza,
+                SUM(CASE WHEN a.estado = 'Ausente' THEN 1 ELSE 0 END) AS total_ausente,
+                SUM(CASE WHEN a.estado = 'Tardanza Justificada' THEN 1 ELSE 0 END) AS total_tj,
+                SUM(CASE WHEN a.estado = 'Falta Justificada' THEN 1 ELSE 0 END) AS total_fj,
+                COUNT(a.id_asistencia) AS total_registros
+            FROM Usuarios u
+            LEFT JOIN Asistencia a ON u.id_usuario = a.id_alumno
+            WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+            GROUP BY u.id_usuario
+            ORDER BY u.apellidos ASC, u.nombres ASC
+        ''', (grado, seccion)).fetchall()
+
+        registros_dia = conn.execute('''
+            SELECT u.dni, u.nombres, u.apellidos, a.estado, a.observacion,
+                   COALESCE(c.nombre_curso, 'Sin curso') AS nombre_curso
+            FROM Asistencia a
+            JOIN Usuarios u ON a.id_alumno = u.id_usuario
+            LEFT JOIN Cursos c ON a.id_curso = c.id_curso
+            WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ? AND a.fecha = ?
+            ORDER BY u.apellidos ASC, u.nombres ASC, nombre_curso ASC
+        ''', (grado, seccion, fecha)).fetchall()
+
+        # Si no hay registros en la fecha consultada, muestra la nómina del salón sin estado
+        if registros_dia:
+            detalle_fecha = registros_dia
+        else:
+            detalle_fecha = conn.execute('''
+                SELECT u.dni, u.nombres, u.apellidos, NULL AS estado, NULL AS observacion,
+                       '—' AS nombre_curso
+                FROM Usuarios u
+                WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+                ORDER BY u.apellidos ASC, u.nombres ASC
+            ''', (grado, seccion)).fetchall()
+
     conn.close()
 
     return render_template(
-        'Admin/reporte_asistencia.html', reporte=reporte, detalle_fecha=detalle_fecha,
-        usuario=usuario, grado=grado, seccion=seccion, fecha=fecha
+        'Admin/reporte_asistencia.html',
+        reporte=reporte,
+        detalle_fecha=detalle_fecha,
+        cursos_salon=cursos_salon,
+        id_curso=id_curso,
+        usuario=usuario,
+        grado=grado,
+        seccion=seccion,
+        fecha=fecha
     )
 
 
-# Arma el cuadro de notas que el director consulta por grado, sección y bimestre.
 @app.route('/calificaciones')
 def gestionar_calificaciones():
     if session.get('id_rol') != 1:
@@ -1149,7 +1203,6 @@ def gestionar_calificaciones():
         SELECT id_alumno, id_curso, nota FROM Calificaciones WHERE periodo = ?
     ''', (periodo,)).fetchall()
 
-    # Ubica cada nota por alumno y curso para colocarla en la celda correspondiente.
     notas_dict = {(n['id_alumno'], n['id_curso']): n['nota'] for n in notas_raw}
     conn.close()
 
@@ -1159,7 +1212,6 @@ def gestionar_calificaciones():
     )
 
 
-# Registro original de notas. En AulaNova V4, academico.py conecta esta ruta con notas_del_curso.
 @app.route('/docente/curso/<int:id_curso>', methods=['GET', 'POST'])
 def docente_curso(id_curso):
     if session.get('id_rol') != 2:
@@ -1210,7 +1262,6 @@ def docente_curso(id_curso):
     )
 
 
-# Pantalla original de tareas. En AulaNova V4, academico.py conecta esta ruta con tareas_del_curso.
 @app.route('/docente/curso/<int:id_curso>/tareas', methods=['GET', 'POST'])
 def docente_tareas(id_curso):
     if session.get('id_rol') != 2:
@@ -1285,7 +1336,6 @@ def docente_tareas(id_curso):
     )
 
 
-# Revisión original de trabajos. En AulaNova V4, academico.py conecta esta ruta con calificar_entregas.
 @app.route('/docente/tarea/<int:id_tarea>/entregas', methods=['GET', 'POST'])
 def docente_ver_entregas(id_tarea):
     if session.get('id_rol') != 2:
@@ -1321,7 +1371,7 @@ def docente_ver_entregas(id_tarea):
 
     alumnos_entregas = conn.execute('''
         SELECT u.id_usuario, u.dni, u.nombres, u.apellidos, u.seccion,
-               e.id_entrega, e.archivo_alumno, e.fecha_entrega, e.nota_tarea
+               e.id_entrega, e.archivo_alumno, e.fecha_entrega, e.nota_tarea, e.comentario_docente
         FROM Usuarios u
         LEFT JOIN EntregasTareas e ON u.id_usuario = e.id_alumno AND e.id_tarea = ?
         WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
@@ -1335,7 +1385,6 @@ def docente_ver_entregas(id_tarea):
     )
 
 
-# Comprueba que la tarea sea del docente antes de borrar el material adjunto y los registros de entrega.
 @app.route('/docente/tarea/eliminar/<int:id_tarea>', methods=['GET', 'POST'])
 def eliminar_tarea(id_tarea):
     if session.get('id_rol') != 2:
@@ -1348,6 +1397,7 @@ def eliminar_tarea(id_tarea):
     ''', (id_tarea, session['id_usuario'])).fetchone()
     if tarea:
         id_curso = tarea['id_curso']
+        # Borra el archivo físico del servidor si la tarea tenía material adjunto
         if tarea['archivo_adjunto']:
             path_archivo = os.path.join(app.config['UPLOAD_FOLDER'], tarea['archivo_adjunto'])
             if os.path.exists(path_archivo):
@@ -1363,7 +1413,6 @@ def eliminar_tarea(id_tarea):
     return redirect(url_for('dashboard_docente'))
 
 
-# Carga los cursos y las notas por bimestre del alumno elegido para la libreta.
 @app.route('/libreta-academica')
 def libreta_academica():
     if session.get('id_rol') != 1:
@@ -1386,7 +1435,6 @@ def libreta_academica():
     cursos = []
     notas_alumno = {}
 
-    # Al elegir un alumno, carga las notas que irán en su libreta.
     if id_alumno:
         alumno_seleccionado = conn.execute(
             'SELECT * FROM Usuarios WHERE id_usuario = ? AND id_rol = 3', (id_alumno,)
@@ -1411,7 +1459,6 @@ def libreta_academica():
     )
 
 
-# Muestra los avisos y recibe los comunicados que publican dirección y docentes.
 @app.route('/comunicados', methods=['GET', 'POST'])
 def gestionar_comunicados():
     if 'id_rol' not in session:
@@ -1427,21 +1474,28 @@ def gestionar_comunicados():
         mensaje = request.form['mensaje'].strip()
         categoria = request.form.get('categoria', 'General')
         destinatario = request.form.get('destinatario', 'Toda la Comunidad')
+        fecha_evento = request.form.get('fecha_evento', '').strip() or None
+        hora_evento = request.form.get('hora_evento', '').strip() or None
+        lugar_evento = request.form.get('lugar_evento', '').strip() or None
         fecha = datetime.now().strftime('%Y-%m-%d %H:%M')
 
-        # Junto al nombre del autor indica si el aviso viene de Dirección o de un docente.
         rol_txt = 'Dirección' if session['id_rol'] == 1 else 'Docente'
         autor = f"{usuario['nombres']} {usuario['apellidos']} ({rol_txt})"
         conn.execute('''
-            INSERT INTO Comunicados (titulo, mensaje, fecha, autor, categoria, destinatario, id_autor)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (titulo, mensaje, fecha, autor, categoria, destinatario, session['id_usuario']))
+            INSERT INTO Comunicados (
+                titulo, mensaje, fecha, autor, categoria, destinatario, id_autor,
+                fecha_evento, hora_evento, lugar_evento
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            titulo, mensaje, fecha, autor, categoria, destinatario, session['id_usuario'],
+            fecha_evento, hora_evento, lugar_evento
+        ))
         conn.commit()
         conn.close()
         flash('Comunicado publicado correctamente.')
         return redirect(url_for('gestionar_comunicados'))
 
-    # Las familias ven los comunicados cuyo destinatario es distinto de Solo Docentes.
     if session['id_rol'] == 3:
         comunicados = conn.execute('''
             SELECT * FROM Comunicados WHERE destinatario != 'Solo Docentes'
@@ -1456,7 +1510,6 @@ def gestionar_comunicados():
     return render_template('Admin/comunicados.html', comunicados=comunicados, usuario=usuario)
 
 
-# Dirección puede eliminar avisos. El docente puede eliminar los que él publicó.
 @app.route('/eliminar-comunicado/<int:id_comunicado>', methods=['POST'])
 def eliminar_comunicado(id_comunicado):
     if session.get('id_rol') not in [1, 2]:
@@ -1467,6 +1520,7 @@ def eliminar_comunicado(id_comunicado):
         'SELECT * FROM Comunicados WHERE id_comunicado = ?', (id_comunicado,)
     ).fetchone()
     if comunicado:
+        # Dirección puede borrar cualquier aviso; el docente solo los que él mismo publicó
         if session['id_rol'] == 1 or comunicado['id_autor'] == session['id_usuario']:
             conn.execute('DELETE FROM Comunicados WHERE id_comunicado = ?', (id_comunicado,))
             conn.commit()
@@ -1476,11 +1530,6 @@ def eliminar_comunicado(id_comunicado):
 
     conn.close()
     return redirect(url_for('gestionar_comunicados'))
-
-
-import json
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 
 @app.route('/estudiante/buho/chat', methods=['POST'])
@@ -1500,7 +1549,7 @@ def chat_buho_estudiante():
     if not clave:
         return {'error': 'Falta configurar GEMINI_API_KEY en el servidor de AulaNova.'}, 503
 
-    # El alumno y su salón se obtienen de la sesión y de la base de datos.
+    # Arma la lista de tareas del salón del alumno marcando cuáles ya tienen entrega
     with closing(get_db_connection()) as conn:
         tareas = conn.execute('''
             SELECT c.nombre_curso AS curso,
@@ -1523,7 +1572,6 @@ def chat_buho_estudiante():
     if not tareas:
         return {'respuesta': 'Tu salón todavía no tiene tareas publicadas.'}
 
-    # El turno anterior permite entender preguntas como «¿y cuándo vence esa tarea?».
     contexto_anterior = datos.get('turno_anterior')
     if not isinstance(contexto_anterior, dict):
         contexto_anterior = {}
@@ -1596,6 +1644,5 @@ def chat_buho_estudiante():
     return {'respuesta': texto}
 
 
-# Inicia el servidor local cuando se ejecuta este archivo directamente.
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

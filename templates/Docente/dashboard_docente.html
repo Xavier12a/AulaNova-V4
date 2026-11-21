@@ -9,6 +9,7 @@
 {% endblock %}
 
 {% block content %}
+<!-- Cabecera de bienvenida con acceso directo a la toma de asistencia -->
 <div class="docente-banner">
     <div>
         <h2>Bienvenido(a), Prof. {{ usuario.nombres }} {{ usuario.apellidos }}</h2>
@@ -20,6 +21,7 @@
     </a>
 </div>
 
+<!-- Tarjetas resumen con los indicadores de carga del docente -->
 <div class="kpi-grid">
     <div class="kpi-card">
         <div class="kpi-info">
@@ -54,6 +56,7 @@
     </div>
 </div>
 
+<!-- Listado de cursos a cargo con avance de notas y accesos por salón -->
 <div class="card">
     <div>
         <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">Mis Cursos Asignados</h3>
@@ -88,6 +91,7 @@
                 </div>
             </div>
 
+            <!-- Barra de progreso según notas registradas en el primer bimestre -->
             <div class="progress-wrap">
                 <div class="progress-label">
                     <span>Avance notas (Bimestre 1)</span>
@@ -122,6 +126,7 @@
     {% endif %}
 </div>
 
+<!-- Últimos comunicados publicados en el muro institucional -->
 {% if comunicados_recientes %}
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">

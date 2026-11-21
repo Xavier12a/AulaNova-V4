@@ -56,12 +56,20 @@
 {% endblock %}
 
 {% block content %}
+{# En Usuarios se ocultan los IDs internos para mostrar solo columnas legibles #}
+{% if tabla == 'Usuarios' %}
+    {% set columnas_visibles = columnas | reject('in', ['id_usuario', 'id_rol']) | list %}
+{% else %}
+    {% set columnas_visibles = columnas %}
+{% endif %}
+
 <section class="db-panel">
     <div class="db-cabecera">
         <h2>SQLite · aulanova.db</h2>
         <span class="db-detalle">Solo lectura</span>
     </div>
 
+    <!-- Selector de tabla de la base de datos -->
     <form class="db-controles" method="get" action="{{ url_for('base_datos') }}">
         <label for="tabla">Tabla</label>
         <select name="tabla" id="tabla" onchange="this.form.submit()">
@@ -79,7 +87,11 @@
             <caption>{{ tabla }} · {{ total }} registro{{ '' if total == 1 else 's' }}</caption>
             <thead>
                 <tr>
-                    {% for columna in columnas %}
+                    {% for columna in columnas_visibles %}
+                        {# Inserta la cabecera 'rol' justo antes de 'estado' en Usuarios #}
+                        {% if tabla == 'Usuarios' and columna == 'estado' %}
+                        <th scope="col">rol</th>
+                        {% endif %}
                     <th scope="col">{{ columna }}</th>
                     {% endfor %}
                 </tr>
@@ -87,19 +99,42 @@
             <tbody>
                 {% for fila in filas %}
                 <tr>
-                    {% for columna in columnas %}
-                    <td>{{ fila[columna] if fila[columna] is not none else '—' }}</td>
+                    {% for columna in columnas_visibles %}
+                        {# Traduce el id_rol numérico a su nombre de perfil #}
+                        {% if tabla == 'Usuarios' and columna == 'estado' %}
+                        <td>
+                            {% if fila['id_rol'] in [1, '1'] %}
+                                Administrador
+                            {% elif fila['id_rol'] in [2, '2'] %}
+                                Docente
+                            {% elif fila['id_rol'] in [3, '3'] %}
+                                Estudiante
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    <td>
+                        {% if tabla == 'Usuarios' and columna == 'estado' %}
+                            {{ 'Matriculado' if fila[columna] in [1, '1'] else 'No matriculado' }}
+                        {% else %}
+                            {{ fila[columna] if fila[columna] is not none else '—' }}
+                        {% endif %}
+                    </td>
                     {% endfor %}
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="{{ columnas|length }}">Esta tabla todavía no tiene registros.</td>
+                    <td colspan="{{ columnas_visibles|length + (1 if tabla == 'Usuarios' else 0) }}">
+                        Esta tabla todavía no tiene registros.
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
+    <!-- Paginación cuando la tabla supera el límite por página -->
     {% if paginas > 1 %}
     <div class="db-pie">
         <span>Página {{ pagina }} de {{ paginas }}</span>

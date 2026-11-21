@@ -52,6 +52,7 @@ def filtro_con_literal(valor, decimales=1):
 
 
 def preparar_cuentas():
+    # Asegura columnas de control de sesiones/claves, llave secreta persistente y trigger docente
     with closing(get_db_connection()) as conn, conn:
         conn.execute("BEGIN IMMEDIATE")
 
@@ -86,6 +87,7 @@ def preparar_cuentas():
             SELECT valor FROM ConfiguracionAcceso WHERE nombre = 'firma_sesion'
         """).fetchone()["valor"]
 
+        # Si un docente aún usa su DNI como contraseña y se actualiza su DNI, sincroniza clave e invalida sesiones viejas
         conn.execute("""
             CREATE TRIGGER IF NOT EXISTS sincronizar_dni_docente
             AFTER UPDATE OF dni ON Usuarios
@@ -105,6 +107,7 @@ preparar_cuentas()
 
 
 def clave_valida(guardada, ingresada):
+    # Soporta hashes Werkzeug (scrypt/pbkdf2) y comparación segura para claves legadas en texto plano
     if not guardada or not ingresada:
         return False
 
@@ -121,6 +124,7 @@ def requiere_cambio(usuario):
 
 
 def token_formulario():
+    # Genera o reutiliza un token CSRF por sesión para formularios sensibles
     if "token_formulario" not in session:
         session["token_formulario"] = secrets.token_urlsafe(32)
     return session["token_formulario"]
@@ -166,6 +170,7 @@ app.view_functions["login"] = iniciar_sesion
 
 @app.before_request
 def comprobar_sesion():
+    # Valida en cada petición que la sesión siga vigente y que no haya cambio de contraseña pendiente
     if request.endpoint in {"static", "login", "logout"}:
         return None
 
@@ -225,6 +230,7 @@ TABLAS_VISIBLES = {
 
 @app.get("/admin/base-de-datos")
 def base_datos():
+    # Visor paginado de solo lectura exclusivo para el rol administrador (id_rol == 1)
     if session.get("id_usuario") is None:
         return redirect(url_for("index"))
     if session.get("id_rol") != 1:
@@ -246,7 +252,7 @@ def base_datos():
             SELECT nombres, apellidos FROM Usuarios WHERE id_usuario = ?
         """, (session["id_usuario"],)).fetchone()
 
-        # Los nombres de tabla y columnas proceden de TABLAS_VISIBLES.
+        # Los nombres de tabla y columnas proceden de la whitelist TABLAS_VISIBLES
         total = conn.execute(f'SELECT COUNT(*) FROM "{tabla}"').fetchone()[0]
         paginas = max(1, (total + por_pagina - 1) // por_pagina)
         pagina = min(max(1, pagina), paginas)
@@ -414,6 +420,7 @@ def cambiar_clave():
             elif nueva == actual:
                 error = "Elige una contraseña distinta de la actual."
             else:
+                # Actualización condicional por versión y clave para evitar condiciones de carrera
                 cambio = conn.execute("""
                     UPDATE Usuarios
                     SET password = ?, clave_temporal = 0,
@@ -442,6 +449,7 @@ def cambiar_clave():
 
 @app.route("/docentes/<int:id_docente>/restablecer-clave", methods=["GET", "POST"])
 def restablecer_clave(id_docente):
+    # Permite al administrador emitir una contraseña temporal que fuerza el cambio en el próximo login
     if session.get("id_rol") != 1:
         abort(403)
 

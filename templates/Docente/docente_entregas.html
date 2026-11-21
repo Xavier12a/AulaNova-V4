@@ -4,6 +4,47 @@
 
 {% block extra_style %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/docente_entregas.css') }}">
+<style>
+    .grade-cell-wrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .comment-input {
+        width: 100%;
+        min-width: 210px;
+        padding: 7px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 7px;
+        font-family: inherit;
+        font-size: 12.5px;
+        color: #0f172a;
+        background: #ffffff;
+    }
+    .comment-input:focus {
+        outline: none;
+        border-color: #0284c7;
+        box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.12);
+    }
+    .btn-reopen-delivery {
+        padding: 6px 10px;
+        border-radius: 7px;
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        color: #334155;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .btn-reopen-delivery:hover {
+        background: #e0f2fe;
+        border-color: #7dd3fc;
+        color: #0369a1;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -13,6 +54,7 @@
     </a>
 </div>
 
+<!-- Cabecera con los datos, consigna y material adjunto de la tarea -->
 <div class="task-detail-card">
     <div>
         <strong>{{ tarea.nombre_curso }}</strong> ·
@@ -38,12 +80,13 @@
     {% endif %}
 </div>
 
+<!-- Tabla de entregas por estudiante con descarga, feedback y calificación -->
 <div class="card">
     <h3>Listado de alumnos y trabajos entregados</h3>
     <p>Una casilla vacía queda pendiente. Para una tarea no presentada puedes registrar 0.</p>
 
     {% if alumnos_entregas %}
-    <form method="post">
+    <form method="post" id="formCalificarEntregas">
         <div style="overflow-x:auto">
             <table>
                 <thead>
@@ -52,6 +95,7 @@
                         <th>Apellidos y nombres</th>
                         <th>Estado de entrega</th>
                         <th>Archivo del alumno</th>
+                        <th>Comentario para el estudiante</th>
                         <th>Calificación</th>
                     </tr>
                 </thead>
@@ -79,16 +123,40 @@
                             {% endif %}
                         </td>
                         <td>
+                            {% if ae.id_entrega %}
+                            <input type="text" class="comment-input"
+                                   name="comentario_{{ ae.id_usuario }}"
+                                   maxlength="300"
+                                   value="{{ ae.comentario_docente or '' }}"
+                                   placeholder="Sin comentarios (opcional)...">
+                            {% else %}
+                            <span style="font-size: 12px; color: #94a3b8;">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {# Campos ocultos para detectar cambios de nota y vincular la entrega al guardar #}
                             <input type="hidden" name="anterior_{{ ae.id_usuario }}"
                                    value="{{ ae.nota if ae.nota is not none else '' }}">
                             <input type="hidden" name="entrega_{{ ae.id_usuario }}"
                                    value="{{ ae.id_entrega or '' }}">
-                            <input type="number" class="nota-input"
-                                   name="nota_{{ ae.id_usuario }}"
-                                   aria-label="Nota de {{ ae.nombres }} {{ ae.apellidos }}"
-                                   min="0" max="{{ 20 if ae.id_entrega else 0 }}" step="0.1"
-                                   value="{{ ae.nota if ae.nota is not none else '' }}"
-                                   placeholder="—">
+                            <div class="grade-cell-wrap">
+                                {# Si no hubo entrega, el máximo permitido se limita a 0 #}
+                                <input type="number" class="nota-input"
+                                       id="nota_{{ ae.id_usuario }}"
+                                       name="nota_{{ ae.id_usuario }}"
+                                       aria-label="Nota de {{ ae.nombres }} {{ ae.apellidos }}"
+                                       min="0" max="{{ 20 if ae.id_entrega else 0 }}" step="0.1"
+                                       value="{{ ae.nota if ae.nota is not none else '' }}"
+                                       placeholder="—">
+
+                                {% if ae.id_entrega and ae.nota is not none %}
+                                <button type="button" class="btn-reopen-delivery"
+                                        title="Quitar nota temporalmente para permitir que el estudiante vuelva a subir su archivo"
+                                        onclick="reabrirEntrega({{ ae.id_usuario }}, '{{ ae.nombres }} {{ ae.apellidos }}')">
+                                    Reabrir entrega
+                                </button>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -104,4 +172,18 @@
     <p>No hay alumnos matriculados en esta sección.</p>
     {% endif %}
 </div>
+
+<script>
+    // Limpia la nota del alumno y envía el formulario para habilitar un nuevo envío
+    function reabrirEntrega(idUsuario, nombreAlumno) {
+        if (!confirm(`¿Reabrir la entrega de ${nombreAlumno}?\nSe quitará su nota actual para que el estudiante pueda subir un nuevo archivo.`)) {
+            return;
+        }
+        const inputNota = document.getElementById(`nota_${idUsuario}`);
+        if (inputNota) {
+            inputNota.value = '';
+            document.getElementById('formCalificarEntregas').submit();
+        }
+    }
+</script>
 {% endblock %}

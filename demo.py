@@ -111,6 +111,7 @@ def registrar_rutas_demo(app):
 
 
 def obtener_usuario_demo(conn, numero, nombres, apellidos, rol):
+    # Distingue docentes y estudiantes por rango numérico y salón asignado
     es_docente = rol == 2
     prefijo = "98" if es_docente else "99"
     codigo = f"{prefijo}{numero:06d}"
@@ -163,6 +164,7 @@ def obtener_usuario_demo(conn, numero, nombres, apellidos, rol):
     nombre_anterior = (f"{etiqueta} {numero:02d}", "Demostración")
     nombre_guardado = (usuario["nombres"], usuario["apellidos"])
 
+    # Bloquea la carga si el identificador ya pertenece a otro registro o salón
     if not misma_cuenta or nombre_guardado not in (
         (nombres, apellidos),
         nombre_anterior,
@@ -187,6 +189,7 @@ def obtener_usuario_demo(conn, numero, nombres, apellidos, rol):
 
 
 def obtener_curso_demo(conn, nombre, id_docente):
+    # Valida que el curso del salón no esté asignado a otro docente antes de reutilizarlo
     curso = conn.execute(
         """
         SELECT id_curso, id_docente
@@ -215,10 +218,11 @@ def obtener_curso_demo(conn, nombre, id_docente):
     return cursor.lastrowid
 
 
-def cargar_asistencia_demo(conn, alumnos, hoy):
-    # Carga cinco días de lunes a viernes. Hoy queda libre para la exposición.
+def cargar_asistencia_demo(conn, alumnos, cursos, hoy):
+    # Carga cinco días de lunes a viernes asignados a cursos reales.
     fecha = hoy
     dias_registrados = 0
+    lista_ids_cursos = list(cursos.values())
 
     while dias_registrados < 5:
         fecha -= timedelta(days=1)
@@ -226,6 +230,9 @@ def cargar_asistencia_demo(conn, alumnos, hoy):
         if fecha.weekday() >= 5:
             continue
 
+        id_curso_dia = lista_ids_cursos[dias_registrados % len(lista_ids_cursos)]
+
+        # Distribuye estados de asistencia de forma cíclica para cubrir todos los casos
         for numero, id_alumno in alumnos.items():
             turno = (numero + dias_registrados) % 13
 
@@ -244,11 +251,11 @@ def cargar_asistencia_demo(conn, alumnos, hoy):
 
             conn.execute(
                 """
-                INSERT INTO Asistencia (id_alumno, fecha, estado, observacion)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(id_alumno, fecha) DO NOTHING
+                INSERT INTO Asistencia (id_alumno, id_curso, fecha, estado, observacion)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(id_alumno, id_curso, fecha) DO NOTHING
                 """,
-                (id_alumno, fecha.isoformat(), estado, observacion),
+                (id_alumno, id_curso_dia, fecha.isoformat(), estado, observacion),
             )
 
         dias_registrados += 1
@@ -276,6 +283,7 @@ def cargar_notas_demo(conn, alumnos, cursos):
 
 
 def cargar_tareas_demo(conn, cursos, hoy):
+    # Verifica si la tabla ya cuenta con la columna de periodo antes de insertarla
     columnas = {
         fila["name"] for fila in conn.execute("PRAGMA table_info(Tareas)")
     }
@@ -361,7 +369,7 @@ def cargar_datos_prueba():
                     conn, numero, nombres, apellidos, 3
                 )
 
-            cargar_asistencia_demo(conn, alumnos, hoy)
+            cargar_asistencia_demo(conn, alumnos, cursos, hoy)
             cargar_notas_demo(conn, alumnos, cursos)
             cargar_tareas_demo(conn, cursos, hoy)
             cargar_comunicados_demo(conn, session["id_usuario"])
@@ -403,6 +411,7 @@ def limpiar_datos_prueba():
         conn.execute("DELETE FROM Comunicados")
         conn.execute("DELETE FROM Cursos")
         conn.execute("DELETE FROM Usuarios WHERE id_rol IN (2, 3)")
+        # Reinicia los contadores autoincrementales de las tablas vaciadas
         conn.execute(
             """
             DELETE FROM sqlite_sequence

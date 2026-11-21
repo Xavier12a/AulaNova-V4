@@ -1,27 +1,97 @@
 {% extends "layout.html" %}
 
-{% block title %}Supervisión de Asistencia - AulaNova{% endblock %}
+{% block title %}Supervisión y Reportes de Asistencia - AulaNova{% endblock %}
 
 {% block header_title %}Supervisión y Reportes de Asistencia - I.E. 2060 Virgen de Guadalupe{% endblock %}
 
 {% block extra_style %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/reporte_asistencia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/asistencia.css') }}">
+<style>
+    .rep-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 14px;
+        margin-bottom: 18px;
+    }
+    .rep-kpi-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px 18px;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    }
+    .rep-kpi-card span {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #64748b;
+    }
+    .rep-kpi-card h3 {
+        font-size: 24px;
+        font-weight: 800;
+        margin: 6px 0 2px;
+        color: #0f172a;
+    }
+    .rep-kpi-card small {
+        font-size: 12px;
+        color: #64748b;
+    }
+    .badge-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 28px;
+        height: 26px;
+        padding: 0 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .badge-status {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 11.5px;
+        font-weight: 700;
+    }
+    .course-pill {
+        display: inline-block;
+        padding: 3px 9px;
+        border-radius: 999px;
+        font-size: 11.5px;
+        font-weight: 700;
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
 
-{# Los indicadores del salón se calculan a partir del consolidado histórico. #}
-{% set ns = namespace(pres=0, tar=0, aus=0, reg=0) %}
+{# Acumula los totales del salón para calcular los KPIs superiores #}
+{% set resumen = namespace(presentes=0, tardanzas=0, faltas=0, just=0, registros=0) %}
 {% for r in reporte %}
-    {% set ns.pres = ns.pres + (r.total_presente or 0) %}
-    {% set ns.tar = ns.tar + (r.total_tardanza or 0) %}
-    {% set ns.aus = ns.aus + (r.total_ausente or 0) %}
-    {% set ns.reg = ns.reg + (r.total_registros or 0) %}
+    {% set resumen.presentes = resumen.presentes + (r.total_presente or 0) %}
+    {% set resumen.tardanzas = resumen.tardanzas + (r.total_tardanza or 0) %}
+    {% set resumen.faltas = resumen.faltas + (r.total_ausente or 0) %}
+    {% set resumen.just = resumen.just + (r.total_tj or 0) + (r.total_fj or 0) %}
+    {% set resumen.registros = resumen.registros + (r.total_registros or 0) %}
 {% endfor %}
-{% set pct_salon = ((ns.pres / ns.reg) * 100)|round(1) if ns.reg > 0 else 0 %}
+{% set efectivos = resumen.presentes + resumen.tardanzas + resumen.just %}
+{% set pct_general = ((efectivos / resumen.registros) * 100)|round(1) if resumen.registros > 0 else 0 %}
 
-<div class="filter-bar">
-    <form method="GET" action="/reporte-asistencia" class="filter-controls">
+{% set curso_seleccionado_nombre = 'Todos los cursos' %}
+{% for c in cursos_salon %}
+    {% if c.id_curso == id_curso %}
+        {% set curso_seleccionado_nombre = c.nombre_curso %}
+    {% endif %}
+{% endfor %}
+
+<!-- Filtros de grado, sección, curso y fecha auditada -->
+<form method="GET" action="/reporte-asistencia" class="filter-bar" style="justify-content: space-between; align-items: flex-end;">
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
         <div class="filter-group">
             <label for="gradoReporte">Grado</label>
             <select id="gradoReporte" name="grado" onchange="this.form.submit()">
@@ -52,125 +122,122 @@
             </select>
         </div>
 
+        <div class="filter-group" style="min-width: 220px;">
+            <label for="cursoReporte">Asignatura / Curso</label>
+            <select id="cursoReporte" name="id_curso" onchange="this.form.submit()">
+                <option value="">Todos los cursos del salón</option>
+                {% for c in cursos_salon %}
+                    <option value="{{ c.id_curso }}"{% if id_curso == c.id_curso %} selected{% endif %}>
+                        {{ c.nombre_curso }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
         <div class="filter-group">
             <label for="fechaReporte">Fecha a Auditar</label>
-            <input type="date" id="fechaReporte" name="fecha"
-                   value="{{ fecha }}" onchange="this.form.submit()">
+            <input type="date" id="fechaReporte" name="fecha" value="{{ fecha }}" onchange="this.form.submit()">
         </div>
-    </form>
-
-    {% if reporte %}
-        <button type="button" class="btn-export" onclick="exportarReporteCSV()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" x2="12" y1="15" y2="3"/>
-            </svg>
-            Exportar Consolidado CSV
-        </button>
-    {% endif %}
-</div>
-
-<div class="kpi-grid">
-    <div class="kpi-card">
-        <div class="kpi-label">Alumnos en Aula</div>
-        <div class="kpi-value">{{ reporte|length }}</div>
-        <div class="kpi-sub">{{ grado }} "{{ seccion }}"</div>
     </div>
 
-    <div class="kpi-card">
-        <div class="kpi-label">Puntualidad General</div>
-        <div class="kpi-value" style="color: #0284c7;">{{ pct_salon }}%</div>
-        <div class="kpi-sub">{{ ns.pres }} asistencias de {{ ns.reg }} registros</div>
+    <button type="button" onclick="exportarCSV()"
+            style="background: #ffffff; color: #0369a1; border: 1.5px solid #bae6fd; padding: 9px 14px; border-radius: 8px; font-weight: 700; font-size: 12.5px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Exportar Consolidado CSV
+    </button>
+</form>
+
+<!-- Tarjetas resumen con las métricas del salón -->
+<div class="rep-kpi-grid">
+    <div class="rep-kpi-card">
+        <span>Alumnos en Aula</span>
+        <h3>{{ reporte|length }}</h3>
+        <small>{{ grado }} "{{ seccion }}" · {{ curso_seleccionado_nombre }}</small>
     </div>
 
-    <div class="kpi-card">
-        <div class="kpi-label">Tardanzas Acumuladas</div>
-        <div class="kpi-value" style="color: #b45309;">{{ ns.tar }}</div>
-        <div class="kpi-sub">Injustificadas en el periodo</div>
+    <div class="rep-kpi-card">
+        <span>Puntualidad General</span>
+        <h3 style="color: #0284c7;">{{ pct_general }}%</h3>
+        <small>{{ efectivos }} asistencias de {{ resumen.registros }} registros</small>
     </div>
 
-    <div class="kpi-card">
-        <div class="kpi-label">Faltas Acumuladas</div>
-        <div class="kpi-value" style="color: #dc2626;">{{ ns.aus }}</div>
-        <div class="kpi-sub">Ausencias sin justificar</div>
+    <div class="rep-kpi-card">
+        <span>Tardanzas Acumuladas</span>
+        <h3 style="color: #b45309;">{{ resumen.tardanzas }}</h3>
+        <small>Injustificadas en el periodo</small>
+    </div>
+
+    <div class="rep-kpi-card">
+        <span>Faltas Acumuladas</span>
+        <h3 style="color: #dc2626;">{{ resumen.faltas }}</h3>
+        <small>Ausencias sin justificar</small>
     </div>
 </div>
 
-<!-- Consolidado histórico del grado y la sección seleccionados -->
-<div class="card" style="margin-bottom: 24px;">
+<!-- Tabla 1: Consolidado acumulado por alumno -->
+<div class="card" style="margin-bottom: 18px;">
     <div style="margin-bottom: 14px;">
         <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
-            Consolidado Histórico - {{ grado }} "{{ seccion }}"
+            Consolidado Histórico - {{ grado }} "{{ seccion }}" ({{ curso_seleccionado_nombre }})
         </h3>
         <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
-            Resumen acumulado de asistencias registradas por el docente del aula.
+            Resumen acumulado de asistencias registradas por curso en el salón seleccionado.
         </p>
     </div>
 
-    <table id="tablaReporteAsistencia"
-           data-archivo="reporte_asistencia_{{ grado|replace(' ', '_') }}_{{ seccion }}.csv">
+    <table id="tablaConsolidado">
         <thead>
             <tr>
-                <th>DNI</th>
+                <th style="width: 110px;">DNI</th>
                 <th>Apellidos y Nombres</th>
-                <th style="text-align: center;">
-                    <span class="dot-indicator" style="background: #22c55e;"></span>Presentes (A)
-                </th>
-                <th style="text-align: center;">
-                    <span class="dot-indicator" style="background: #eab308;"></span>Tardanzas (T)
-                </th>
-                <th style="text-align: center;">
-                    <span class="dot-indicator" style="background: #ef4444;"></span>Faltas (F)
-                </th>
-                <th style="text-align: center;">
-                    <span class="dot-indicator" style="background: #3b82f6;"></span>Tard. Just. (TJ)
-                </th>
-                <th style="text-align: center;">
-                    <span class="dot-indicator" style="background: #a855f7;"></span>Faltas Just. (FJ)
-                </th>
+                <th style="text-align: center;">🟢 Presentes (A)</th>
+                <th style="text-align: center;">🟡 Tardanzas (T)</th>
+                <th style="text-align: center;">🔴 Faltas (F)</th>
+                <th style="text-align: center;">🔵 Tard. Just. (TJ)</th>
+                <th style="text-align: center;">🟣 Faltas Just. (FJ)</th>
                 <th style="text-align: center;">% Asistencia</th>
-                <th>Situación</th>
+                <th style="text-align: center;">Situación</th>
             </tr>
         </thead>
-
         <tbody>
             {% for r in reporte %}
-                {% set pres = r.total_presente or 0 %}
-                {% set tar = r.total_tardanza or 0 %}
-                {% set aus = r.total_ausente or 0 %}
+                {# Porcentaje efectivo y semáforo de alerta por alumno #}
+                {% set p = r.total_presente or 0 %}
+                {% set t = r.total_tardanza or 0 %}
+                {% set f = r.total_ausente or 0 %}
                 {% set tj = r.total_tj or 0 %}
                 {% set fj = r.total_fj or 0 %}
                 {% set tot = r.total_registros or 0 %}
-                {% set pct = ((pres / tot) * 100)|round(0)|int if tot > 0 else 0 %}
-
+                {% set pct = (((p + t + tj + fj) / tot) * 100)|round|int if tot > 0 else 100 %}
                 <tr>
                     <td><strong>{{ r.dni }}</strong></td>
                     <td>{{ r.apellidos }}, {{ r.nombres }}</td>
-                    <td style="text-align: center;"><span class="count-pill pill-pres">{{ pres }}</span></td>
-                    <td style="text-align: center;"><span class="count-pill pill-tar">{{ tar }}</span></td>
-                    <td style="text-align: center;"><span class="count-pill pill-aus">{{ aus }}</span></td>
-                    <td style="text-align: center;"><span class="count-pill pill-tj">{{ tj }}</span></td>
-                    <td style="text-align: center;"><span class="count-pill pill-fj">{{ fj }}</span></td>
+                    <td style="text-align: center;"><span class="badge-count" style="background: #dcfce7; color: #15803d;">{{ p }}</span></td>
+                    <td style="text-align: center;"><span class="badge-count" style="background: #fef9c3; color: #a16207;">{{ t }}</span></td>
+                    <td style="text-align: center;"><span class="badge-count" style="background: #fee2e2; color: #b91c1c;">{{ f }}</span></td>
+                    <td style="text-align: center;"><span class="badge-count" style="background: #e0f2fe; color: #0369a1;">{{ tj }}</span></td>
+                    <td style="text-align: center;"><span class="badge-count" style="background: #f3e8ff; color: #6d28d9;">{{ fj }}</span></td>
                     <td style="text-align: center;"><strong>{{ pct }}%</strong></td>
-                    <td>
+                    <td style="text-align: center;">
                         {% if tot == 0 %}
-                            <span class="badge-estado estado-empty">Sin registros</span>
-                        {% elif aus >= 3 %}
-                            <span class="badge-estado estado-danger">Alerta por Faltas</span>
-                        {% elif tar >= 3 or aus >= 1 %}
-                            <span class="badge-estado estado-warn">En Observación</span>
+                            <span class="badge-status" style="background: #f1f5f9; color: #64748b;">Sin registros</span>
+                        {% elif f >= 3 or pct < 75 %}
+                            <span class="badge-status" style="background: #fee2e2; color: #b91c1c;">Alerta Inasistencia</span>
+                        {% elif f >= 1 or t >= 2 %}
+                            <span class="badge-status" style="background: #fef9c3; color: #a16207;">En Observación</span>
                         {% else %}
-                            <span class="badge-estado estado-ok">Regular</span>
+                            <span class="badge-status" style="background: #dcfce7; color: #15803d;">Regular</span>
                         {% endif %}
                     </td>
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="9" style="text-align: center; color: #94a3b8; padding: 30px;">
-                        No hay estudiantes matriculados en este grado y sección.
+                    <td colspan="9" style="text-align: center; color: #94a3b8; padding: 28px;">
+                        No hay alumnos matriculados en este grado y sección.
                     </td>
                 </tr>
             {% endfor %}
@@ -178,7 +245,7 @@
     </table>
 </div>
 
-<!-- Detalle de asistencia de la fecha seleccionada, en modo de solo lectura -->
+<!-- Tabla 2: Auditoría de registros por curso en la fecha elegida -->
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
         <div>
@@ -186,10 +253,11 @@
                 Detalle de Asistencia del Día ({{ fecha }})
             </h3>
             <p style="font-size: 12px; color: #64748b; margin-top: 2px;">
-                Vista de auditoría en modo solo lectura sobre lo reportado en la fecha seleccionada.
+                Vista de auditoría en modo solo lectura sobre lo reportado por curso en la fecha seleccionada.
             </p>
         </div>
-        <span style="font-size: 12px; font-weight: 600; color: #475569; background: #f1f5f9; padding: 4px 12px; border-radius: 20px;">
+
+        <span style="font-size: 11.5px; font-weight: 700; color: #475569; background: #f1f5f9; padding: 5px 12px; border-radius: 20px;">
             Modo Supervisión
         </span>
     </div>
@@ -199,39 +267,46 @@
             <tr>
                 <th style="width: 110px;">DNI</th>
                 <th>Apellidos y Nombres</th>
-                <th style="width: 190px;">Estado Reportado</th>
+                <th style="width: 220px;">Asignatura / Curso</th>
+                <th style="width: 210px;">Estado Reportado</th>
                 <th>Observación del Docente</th>
             </tr>
         </thead>
-
         <tbody>
             {% for d in detalle_fecha %}
                 <tr>
                     <td><strong>{{ d.dni }}</strong></td>
                     <td>{{ d.apellidos }}, {{ d.nombres }}</td>
                     <td>
-                        {% if not d.estado %}
-                            <span class="badge-estado estado-empty">Sin toma de lista</span>
-                        {% elif d.estado == 'Presente' %}
-                            <span class="badge-estado estado-ok">Presente (A)</span>
-                        {% elif d.estado == 'Tardanza' %}
-                            <span class="badge-estado estado-warn">Tardanza (T)</span>
-                        {% elif d.estado == 'Ausente' %}
-                            <span class="badge-estado estado-danger">Ausente (F)</span>
-                        {% elif d.estado == 'Tardanza Justificada' %}
-                            <span class="badge-estado estado-tj">Tardanza Just. (TJ)</span>
-                        {% elif d.estado == 'Falta Justificada' %}
-                            <span class="badge-estado estado-fj">Falta Just. (FJ)</span>
+                        {% if d.nombre_curso and d.nombre_curso != '—' %}
+                            <span class="course-pill">{{ d.nombre_curso }}</span>
+                        {% else %}
+                            <span style="color: #94a3b8;">—</span>
                         {% endif %}
                     </td>
-                    <td style="font-size: 13px; color: #64748b;">
-                        {{ d.observacion if d.observacion else '—' }}
+                    <td>
+                        {% if d.estado == 'Presente' %}
+                            <span class="badge-status" style="background: #dcfce7; color: #15803d;">Presente (A)</span>
+                        {% elif d.estado == 'Tardanza' %}
+                            <span class="badge-status" style="background: #fef9c3; color: #a16207;">Tardanza (T)</span>
+                        {% elif d.estado == 'Ausente' %}
+                            <span class="badge-status" style="background: #fee2e2; color: #b91c1c;">Ausente (F)</span>
+                        {% elif d.estado == 'Tardanza Justificada' %}
+                            <span class="badge-status" style="background: #e0f2fe; color: #0369a1;">Tard. Just. (TJ)</span>
+                        {% elif d.estado == 'Falta Justificada' %}
+                            <span class="badge-status" style="background: #f3e8ff; color: #6d28d9;">Falta Just. (FJ)</span>
+                        {% else %}
+                            <span class="badge-status" style="background: #f1f5f9; color: #64748b;">Sin toma de lista</span>
+                        {% endif %}
+                    </td>
+                    <td style="color: #475569; font-size: 13px;">
+                        {{ d.observacion or '—' }}
                     </td>
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="4" style="text-align: center; color: #94a3b8; padding: 24px;">
-                        No hay estudiantes en este salón.
+                    <td colspan="5" style="text-align: center; color: #94a3b8; padding: 24px;">
+                        No hay estudiantes para auditar en esta selección.
                     </td>
                 </tr>
             {% endfor %}
@@ -240,33 +315,23 @@
 </div>
 
 <script>
-    function exportarReporteCSV() {
-        const tabla = document.getElementById('tablaReporteAsistencia');
-        const lineas = [
-            'DNI;Apellidos y Nombres;Presentes (A);Tardanzas (T);Faltas (F);Tardanzas Justificadas (TJ);Faltas Justificadas (FJ);% Asistencia;Situación'
-        ];
-
-        for (const fila of tabla.tBodies[0].rows) {
-            if (fila.cells.length !== 9) continue;
-
-            const datos = Array.from(fila.cells, celda => {
-                const texto = celda.textContent.trim().replace(/"/g, '""');
-                return `"${texto}"`;
-            });
-
-            lineas.push(datos.join(';'));
-        }
-
-        const blob = new Blob(['\uFEFF', lineas.join('\r\n')], {
-            type: 'text/csv;charset=utf-8;'
+    // Convierte las filas visibles de la tabla consolidada a un archivo CSV con BOM UTF-8
+    function exportarCSV() {
+        const tabla = document.getElementById('tablaConsolidado');
+        const filas = Array.from(tabla.querySelectorAll('tr'));
+        const lineas = filas.map(fila => {
+            const celdas = Array.from(fila.querySelectorAll('th, td'));
+            return celdas.map(c => `"${c.innerText.replace(/\n/g, ' ').trim()}"`).join(';');
         });
-
-        const enlace = document.createElement('a');
+        const contenido = '\uFEFF' + lineas.join('\n');
+        const blob = new Blob([contenido], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
+        const enlace = document.createElement('a');
         enlace.href = url;
-        enlace.download = tabla.dataset.archivo;
+        enlace.download = `Asistencia_{{ grado|replace(' ', '_') }}_{{ seccion }}_{{ fecha }}.csv`;
         enlace.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        URL.revokeObjectURL(url);
     }
 </script>
+
 {% endblock %}

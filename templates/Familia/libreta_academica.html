@@ -16,7 +16,7 @@
 ] %}
 {% set bimestres = ['Bimestre 1', 'Bimestre 2', 'Bimestre 3', 'Bimestre 4'] %}
 
-<!-- Al cambiar de grado o sección, se carga la lista de alumnos del nuevo salón. -->
+<!-- Filtros de salón y alumno; se ocultan al imprimir o exportar a PDF -->
 <div class="filter-bar no-print">
     <form method="GET" action="/libreta-academica" class="filter-controls">
         <div class="filter-group">
@@ -74,6 +74,7 @@
     {% endif %}
 </div>
 
+<!-- Boleta oficial de calificaciones por bimestre y promedio anual -->
 <div class="card">
     <div style="margin-bottom: 16px;">
         <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">
@@ -85,7 +86,7 @@
     </div>
 
     {% if alumno_seleccionado %}
-        {# Si la consulta del alumno omite el grado o la sección, se usa el salón seleccionado. #}
+        {# Respalda grado y sección con los filtros activos si el registro del alumno los omite #}
         {% set grado_boleta = alumno_seleccionado.grado|default(grado, true) %}
         {% set seccion_boleta = alumno_seleccionado.seccion|default(seccion, true) %}
         {% set grado_normalizado = grado_boleta|trim|lower %}
@@ -128,7 +129,7 @@
 
         <tbody>
             {% if alumno_seleccionado and cursos %}
-                {# Cada curso se promedia con sus bimestres registrados. Una nota de cero sí cuenta. #}
+                {# Acumula los promedios anuales de cada asignatura para calcular el promedio general #}
                 {% set general = namespace(suma=0, cont=0) %}
 
                 {% for c in cursos %}
@@ -224,6 +225,7 @@
 </div>
 
 <script>
+    // Limpia el alumno seleccionado antes de recargar el formulario al cambiar de salón
     function cambiarSalon(formulario) {
         formulario.elements.id_alumno.value = '';
         formulario.submit();

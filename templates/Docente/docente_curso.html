@@ -14,6 +14,7 @@
     </a>
 </div>
 
+<!-- Selector de bimestre y resumen estadístico en tiempo real del aula -->
 <div class="filter-bar">
     <form method="get">
         <div class="filter-group">
@@ -33,6 +34,7 @@
     </div>
 </div>
 
+<!-- Tabla de calificaciones: toma el promedio de tareas o un ajuste manual del docente -->
 <div class="card">
     <h3>Registro de calificaciones — {{ periodo }}</h3>
     <p>La nota final usa el promedio de las tareas calificadas.
@@ -56,6 +58,7 @@
                 </thead>
                 <tbody>
                     {% for a in alumnos %}
+                    {# data-promedio conserva la nota calculada de tareas para volver a ella si se limpia el ajuste #}
                     <tr class="fila-nota"
                         data-promedio="{{ a.promedio if a.promedio is not none else '' }}">
                         <td><strong>{{ a.dni }}</strong></td>
@@ -118,6 +121,7 @@
         return 'C';
     }
 
+    // Recalcula la nota final, estado y promedio del aula al editar cualquier fila
     function actualizarNotas() {
         let suma = 0;
         let cantidad = 0;
@@ -157,6 +161,7 @@
     filasNotas.forEach(fila => {
         const input = fila.querySelector('.nota-input');
         input.addEventListener('input', actualizarNotas);
+        // Limpia el ajuste manual para volver al promedio automático de tareas
         fila.querySelector('.usar-promedio').addEventListener('click', () => {
             input.value = '';
             actualizarNotas();

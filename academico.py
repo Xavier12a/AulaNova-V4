@@ -21,7 +21,7 @@ BIMESTRES = tuple(f"Bimestre {n}" for n in range(1, 5))
 # ---------------------------------------------------------------------
 
 def sql_actualizar_promedios(curso):
-    # "curso" es una expresión interna de SQLite definida por los triggers.
+    # Recalcula solo los promedios automáticos (es_manual = 0) sin pisar ajustes manuales
     return f"""
         DELETE FROM Calificaciones
         WHERE id_curso = {curso} AND es_manual = 0;
@@ -41,6 +41,7 @@ def sql_actualizar_promedios(curso):
 
 
 def preparar_notas():
+    # Asegura columnas, tabla de ceros explícitos, vista de promedios y triggers SQLite
     with closing(get_db_connection()) as conn, conn:
         conn.execute("BEGIN IMMEDIATE")
 
@@ -50,9 +51,15 @@ def preparar_notas():
         columnas_notas = {
             fila["name"] for fila in conn.execute("PRAGMA table_info(Calificaciones)")
         }
+        columnas_entregas = {
+            fila["name"] for fila in conn.execute("PRAGMA table_info(EntregasTareas)")
+        }
 
         if "periodo" not in columnas_tareas:
             conn.execute("ALTER TABLE Tareas ADD COLUMN periodo TEXT")
+
+        if "comentario_docente" not in columnas_entregas:
+            conn.execute("ALTER TABLE EntregasTareas ADD COLUMN comentario_docente TEXT")
 
         if "es_manual" not in columnas_notas:
             conn.execute("""
@@ -71,6 +78,7 @@ def preparar_notas():
             )
         """)
 
+        # Vista que consolida entregas calificadas y ceros asignados por no presentación
         conn.execute("""
             CREATE VIEW IF NOT EXISTS PromediosTareas AS
             SELECT t.id_curso, t.periodo, n.id_alumno,
@@ -95,6 +103,7 @@ def preparar_notas():
             GROUP BY t.id_curso, t.periodo, n.id_alumno
         """)
 
+        # Triggers para mantener sincronizada la tabla Calificaciones ante cambios en entregas
         for tabla in ("EntregasTareas", "CerosSinEntrega"):
             for evento in ("INSERT", "DELETE", "UPDATE"):
                 referencia = "OLD" if evento == "DELETE" else "NEW"
@@ -104,8 +113,7 @@ def preparar_notas():
                 )
                 antes = ""
                 if tabla == "EntregasTareas" and evento == "INSERT":
-                    # Si llega el archivo posteriormente, pasa a pendiente
-                    # de revisión hasta que el docente califique la entrega.
+                    # Si el alumno entrega después de recibir 0, se retira el cero hasta revisar
                     antes = """
                         DELETE FROM CerosSinEntrega
                         WHERE id_tarea = NEW.id_tarea
@@ -152,6 +160,7 @@ def exigir_docente():
 
 
 def obtener_curso(conn, id_curso):
+    # Verifica que el curso exista y pertenezca al docente autenticado
     curso = conn.execute("""
         SELECT * FROM Cursos WHERE id_curso = ? AND id_docente = ?
     """, (id_curso, session["id_usuario"])).fetchone()
@@ -167,6 +176,7 @@ def obtener_usuario(conn):
 
 
 def obtener_tarea(conn, id_tarea):
+    # Verifica que la tarea pertenezca a un curso dictado por el docente actual
     tarea = conn.execute("""
         SELECT t.*, c.nombre_curso, c.grado, c.seccion
         FROM Tareas t
@@ -179,6 +189,7 @@ def obtener_tarea(conn, id_tarea):
 
 
 def leer_nota(texto):
+    # Valida que la nota sea un número entre 0 y 20 con máximo un decimal
     texto = (texto or "").strip().replace(",", ".")
     if texto == "":
         return None
@@ -260,6 +271,7 @@ def notas_del_curso(id_curso):
 
                     if nueva == original:
                         continue
+                    # Control optimista: evita sobrescribir cambios hechos en otra pestaña
                     if alumno["ajuste"] != original:
                         raise ValueError(
                             "Una nota cambió en otra ventana. "
@@ -275,6 +287,7 @@ def notas_del_curso(id_curso):
                             DO UPDATE SET nota = excluded.nota, es_manual = 1
                         """, (ident, id_curso, periodo, nueva))
                     else:
+                        # Si se borra el ajuste manual, se restaura el promedio de tareas
                         conn.execute("""
                             DELETE FROM Calificaciones
                             WHERE id_alumno = ? AND id_curso = ? AND periodo = ?
@@ -320,6 +333,7 @@ def tareas_del_curso(id_curso):
                 if periodo not in BIMESTRES:
                     raise ValueError("Selecciona el bimestre de la actividad.")
 
+                # Permite reasignar el bimestre de una tarea ya existente
                 if request.form.get("accion") == "asignar_periodo":
                     id_tarea = request.form.get("id_tarea", type=int)
                     cambio = conn.execute("""
@@ -382,6 +396,7 @@ def tareas_del_curso(id_curso):
         flash(str(error))
         return volver_tareas(id_curso)
     except Exception:
+        # Limpia el archivo subido si falla la inserción en base de datos
         if archivo_guardado and os.path.isfile(archivo_guardado):
             os.remove(archivo_guardado)
         raise
@@ -410,6 +425,7 @@ def calificar_entregas(id_tarea):
             alumnos = conn.execute("""
                 SELECT u.id_usuario, u.dni, u.nombres, u.apellidos,
                        e.id_entrega, e.archivo_alumno, e.fecha_entrega,
+                       e.comentario_docente,
                        CASE WHEN e.id_entrega IS NOT NULL THEN e.nota_tarea
                             WHEN z.id_alumno IS NOT NULL THEN 0 END AS nota
                 FROM Usuarios u
@@ -432,9 +448,12 @@ def calificar_entregas(id_tarea):
 
                     original = leer_nota(request.form.get(f"anterior_{ident}"))
                     nueva = leer_nota(request.form[clave])
+                    comentario_nuevo = (request.form.get(f"comentario_{ident}") or "").strip() or None
+                    comentario_actual = (alumno["comentario_docente"] or "").strip() or None
 
-                    if original == nueva:
+                    if original == nueva and comentario_nuevo == comentario_actual:
                         continue
+                    # Verifica que ni la nota ni el estado de entrega cambiaran durante la revisión
                     if alumno["nota"] != original:
                         raise ValueError(
                             "Otra ventana cambió una calificación. "
@@ -450,9 +469,10 @@ def calificar_entregas(id_tarea):
 
                     if alumno["id_entrega"] is not None:
                         conn.execute("""
-                            UPDATE EntregasTareas SET nota_tarea = ?
+                            UPDATE EntregasTareas
+                            SET nota_tarea = ?, comentario_docente = ?
                             WHERE id_tarea = ? AND id_alumno = ?
-                        """, (nueva, id_tarea, ident))
+                        """, (nueva, comentario_nuevo, id_tarea, ident))
                     elif nueva is None:
                         conn.execute("""
                             DELETE FROM CerosSinEntrega
@@ -469,7 +489,7 @@ def calificar_entregas(id_tarea):
                             "Puedes dejar la nota en blanco o registrar 0."
                         )
 
-                flash("Calificaciones de la tarea guardadas.")
+                flash("Calificaciones y comentarios guardados.")
                 return volver_entregas(id_tarea)
 
     except ValueError as error:
@@ -480,6 +500,24 @@ def calificar_entregas(id_tarea):
         "Docente/docente_entregas.html",
         usuario=usuario, tarea=tarea, alumnos_entregas=alumnos
     )
+
+
+# ---------------------------------------------------------------------
+# Filtro directo para leer el comentario del docente desde la BD.
+# ---------------------------------------------------------------------
+
+@app.template_filter("comentario_entrega")
+def filtro_comentario_entrega(id_entrega):
+    if not id_entrega:
+        return None
+    try:
+        with closing(get_db_connection()) as conn:
+            fila = conn.execute("""
+                SELECT comentario_docente FROM EntregasTareas WHERE id_entrega = ?
+            """, (id_entrega,)).fetchone()
+        return fila["comentario_docente"] if fila and fila["comentario_docente"] else None
+    except Exception:
+        return None
 
 
 # Se conservan las URL que ya utilizan los botones y enlaces de AulaNova.

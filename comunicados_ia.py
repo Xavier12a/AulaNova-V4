@@ -14,7 +14,7 @@ PUBLICOS = ('Toda la Comunidad', 'Estudiantes y Familias', 'Solo Docentes')
 
 @comunicados_ia.post('/comunicados/generar-borrador')
 def generar_borrador():
-    # Solo Dirección y los docentes pueden generar comunicados.
+    # Verifica que el usuario esté autenticado y tenga rol de dirección (1) o docente (2)
     rol = session.get('id_rol')
     if rol not in (1, 2) or not session.get('id_usuario'):
         return {'error': 'Inicia sesión como director o docente.'}, 403
@@ -23,6 +23,7 @@ def generar_borrador():
     if not isinstance(datos, dict):
         return {'error': 'No se pudieron leer los datos del formulario.'}, 400
 
+    # Valida tipos y longitudes máximas por campo antes de normalizar
     campos = {}
     limites = {
         'categoria': 30,
@@ -45,6 +46,7 @@ def generar_borrador():
     if campos['destinatario'] not in PUBLICOS:
         return {'error': 'Selecciona el público destinatario.'}, 400
 
+    # Restringe los avisos internos exclusivos para docentes al rol de dirección
     if rol != 1 and campos['destinatario'] == 'Solo Docentes':
         return {'error': 'Solo Dirección puede generar un aviso interno para docentes.'}, 403
 
@@ -68,6 +70,7 @@ def generar_borrador():
         'el aviso. El mensaje debe tener entre uno y tres párrafos breves.'
     )
 
+    # Solicita respuesta JSON estructurada con esquema estricto de título y mensaje
     cuerpo = {
         'system_instruction': {
             'parts': [{'text': instrucciones}]
@@ -112,7 +115,7 @@ def generar_borrador():
     except (URLError, OSError, ValueError):
         return {'error': 'No se pudo conectar con Gemini. Puedes redactar el aviso manualmente.'}, 503
 
-    # La generación solo devuelve texto. El botón Publicar utiliza la ruta existente.
+    # Extrae el texto ignorando bloques de pensamiento ('thought') y parsea el borrador JSON
     try:
         partes = resultado['candidates'][0]['content']['parts']
         texto = ''.join(

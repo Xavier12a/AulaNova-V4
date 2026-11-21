@@ -9,15 +9,18 @@
 </head>
 <body>
 
+    <!-- Contenedor principal de autenticación institucional -->
     <div class="login-container">
         <img src="{{ url_for('static', filename='logo_colegio.jpg') }}" alt="Escudo I.E. 2060 Virgen de Guadalupe" class="school-logo">
         <div class="brand-logo">Aula<span>Nova</span></div>
         <div class="school-name">I.E. 2060 Virgen de Guadalupe</div>
         
+        {# Muestra el mensaje de error si las credenciales son inválidas #}
         {% if error %}
             <div class="error-msg" role="alert">{{ error }}</div>
         {% endif %}
 
+        <!-- Formulario de acceso por correo institucional o DNI -->
         <form action="/login" method="POST" autocomplete="off">
             <div class="form-group">
                 <label for="correo">Usuario (Correo o DNI)</label>

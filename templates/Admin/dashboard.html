@@ -9,6 +9,7 @@
 {% endblock %}
 
 {% block content %}
+<!-- Cabecera de bienvenida y herramientas de carga/limpieza para demostración -->
 <div class="welcome-banner">
     <div>
         <h2>Bienvenido, {{ usuario.nombres }} {{ usuario.apellidos }}</h2>
@@ -18,7 +19,6 @@
     <div class="dev-tools">
         <form action="/admin/cargar-datos-prueba" method="POST" onsubmit="return confirm('¿Deseas insertar datos de prueba (docentes, alumnos, cursos, asistencias, notas y comunicados)?');">
             <button type="submit" class="btn-seed" title="Insertar registros de prueba para demostración">
-                <!-- Ícono de escarabajo (Bug) -->
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/>
                     <path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/>
@@ -41,6 +41,7 @@
     </div>
 </div>
 
+<!-- Tarjetas con totales generales de alumnos, docentes y cursos -->
 <div class="stats-grid">
     <div class="stat-card">
         <div class="stat-info">
@@ -73,6 +74,7 @@
     </div>
 </div>
 
+<!-- Enlaces rápidos a los módulos principales de gestión -->
 <div class="card">
     <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 14px;">Accesos Directos de Supervisión</h3>
     <div class="quick-grid">
@@ -95,7 +97,7 @@
     </div>
 </div>
 
-<!-- Modal de Confirmación con Contraseña -->
+<!-- Modal con clave de seguridad antes de vaciar la base de datos -->
 <div class="modal-backdrop" id="modalVaciar" onclick="if(event.target === this) cerrarModalVaciar()">
     <div class="modal-box">
         <h3>Confirmar Reinicio de Base de Datos</h3>
@@ -114,10 +116,13 @@
 </div>
 
 <script>
+    // Abre el modal de reinicio y enfoca el campo de contraseña
     function abrirModalVaciar() {
         document.getElementById('modalVaciar').classList.add('open');
         setTimeout(() => document.getElementById('inputClaveVaciar').focus(), 50);
     }
+
+    // Cierra el modal y limpia la clave ingresada
     function cerrarModalVaciar() {
         document.getElementById('modalVaciar').classList.remove('open');
         document.getElementById('inputClaveVaciar').value = '';

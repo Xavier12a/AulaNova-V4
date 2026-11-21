@@ -15,11 +15,13 @@
 </div>
 
 <div class="tareas-grid">
+    <!-- Listado de actividades publicadas en la sección con su estado y progreso -->
     <div>
         <h3>Tareas y prácticas — Sección {{ curso.seccion }}</h3>
         <p>{{ tareas|length }} actividad(es)</p>
 
         {% for t in tareas %}
+        {# Determina el estado visual de la tarea comparando su fecha límite con hoy #}
         {% set estado = 'vencida' if t.fecha_entrega < hoy else ('hoy' if t.fecha_entrega == hoy else 'activa') %}
         {% set pct = ((t.entregadas * 100 / total)|round|int) if total else 0 %}
 
@@ -43,6 +45,7 @@
             <h4 class="task-title">{{ t.titulo }}</h4>
             <p class="task-desc">{{ t.descripcion }}</p>
 
+            <!-- Vincula la tarea a un bimestre para que entre en el cálculo de promedios -->
             <form method="post" style="margin:12px 0">
                 <input type="hidden" name="accion" value="asignar_periodo">
                 <input type="hidden" name="id_tarea" value="{{ t.id_tarea }}">
@@ -65,6 +68,7 @@
             </a>
             {% endif %}
 
+            <!-- Barra de progreso de entregas recibidas sobre el total de alumnos -->
             <div class="delivery-progress">
                 <div class="delivery-meta">
                     <span>Entregas recibidas (Sec. {{ curso.seccion }})</span>
@@ -91,6 +95,7 @@
         {% endfor %}
     </div>
 
+    <!-- Panel lateral para publicar una nueva tarea o práctica con archivo opcional -->
     <aside class="publish-card">
         <h3>Nueva tarea o práctica</h3>
         <p>{{ curso.grado }} — Sección {{ curso.seccion }}</p>
