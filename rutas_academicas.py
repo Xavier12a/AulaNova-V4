@@ -12,6 +12,7 @@ from contextlib import closing
 from datetime import datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from werkzeug.security import generate_password_hash
 
 # Flask recibe los formularios, abre las pantallas y recuerda la sesión del usuario.
 from flask import (
@@ -114,27 +115,9 @@ def index():
 
 @app.route('/login', methods=['POST'])
 def login():
-    correo = request.form['correo']
-    password = request.form['password']
-
-    conn = get_db_connection()
-    usuario = conn.execute(
-        'SELECT * FROM Usuarios WHERE correo = ? OR dni = ?',
-        (correo, correo)
-    ).fetchone()
-    conn.close()
-
-    if usuario and usuario['password'] == password:
-        session['id_usuario'] = usuario['id_usuario']
-        session['id_rol'] = usuario['id_rol']
-        if usuario['id_rol'] == 1:
-            return redirect(url_for('dashboard'))
-        if usuario['id_rol'] == 2:
-            return redirect(url_for('dashboard_docente'))
-        if usuario['id_rol'] == 3:
-            return redirect(url_for('dashboard_estudiante'))
-
-    return render_template('login.html', error='Correo o DNI / Contraseña incorrectos.')
+    # app.py registra el inicio de sesión que verifica el hash y la clave temporal.
+    from app import iniciar_sesion
+    return iniciar_sesion()
 
 
 @app.route('/logout')
@@ -430,10 +413,11 @@ def crear_alumno():
 
     conn = get_db_connection()
     try:
+        # La familia entra con el DNI y elige su contraseña en el primer ingreso.
         conn.execute('''
-            INSERT INTO Usuarios (nombres, apellidos, correo, password, dni, grado, seccion, id_rol, estado)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 3, 1)
-        ''', (nombres, apellidos, correo, dni, dni, grado, seccion))
+            INSERT INTO Usuarios (nombres, apellidos, correo, password, dni, grado, seccion, id_rol, estado, clave_temporal)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 3, 1, 1)
+        ''', (nombres, apellidos, correo, generate_password_hash(dni), dni, grado, seccion))
         conn.commit()
         flash(f'Alumno {nombres} {apellidos} registrado correctamente.')
     except sqlite3.IntegrityError:
@@ -504,8 +488,6 @@ def descargar_plantilla():
         output.getvalue(), mimetype='text/csv',
         headers={'Content-Disposition': 'attachment;filename=plantilla_alumnos.csv'}
     )
-
-
 VISTA_PREVIA_CSV = """
 {% extends "layout.html" %}
 {% block title %}Revisar importación - AulaNova{% endblock %}
@@ -697,14 +679,15 @@ def procesar_importacion(tipo):
 
             if confirmar and invalidas == 0:
                 rol = 3 if tipo == 'alumnos' else 2
+                # Cada cuenta empieza con su DNI y pide cambiarlo en el primer ingreso.
                 for _, datos, _ in filas:
                     conn.execute('''
                         INSERT INTO Usuarios
-                            (nombres, apellidos, correo, password, dni, grado, seccion, id_rol, estado)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                            (nombres, apellidos, correo, password, dni, grado, seccion, id_rol, estado, clave_temporal)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1)
                     ''', (
                         datos['nombres'], datos['apellidos'], datos['correo'],
-                        datos['dni'], datos['dni'], datos.get('grado'),
+                        generate_password_hash(datos['dni']), datos['dni'], datos.get('grado'),
                         datos.get('seccion'), rol
                     ))
 
@@ -778,9 +761,9 @@ def crear_docente():
     conn = get_db_connection()
     try:
         conn.execute('''
-            INSERT INTO Usuarios (nombres, apellidos, correo, password, dni, id_rol, estado)
-            VALUES (?, ?, ?, ?, ?, 2, 1)
-        ''', (nombres, apellidos, correo, dni, dni))
+            INSERT INTO Usuarios (nombres, apellidos, correo, password, dni, id_rol, estado, clave_temporal)
+            VALUES (?, ?, ?, ?, ?, 2, 1, 1)
+        ''', (nombres, apellidos, correo, generate_password_hash(dni), dni))
         conn.commit()
         flash(f'Docente {nombres} {apellidos} registrado correctamente.')
     except sqlite3.IntegrityError:
@@ -1072,8 +1055,6 @@ def guardar_asistencia():
     conn.close()
     flash(f'Asistencia de {curso["nombre_curso"]} guardada correctamente.')
     return redirect(url_for('gestionar_asistencia', id_curso=curso['id_curso'], fecha=fecha))
-
-
 @app.route('/reporte-asistencia')
 def reporte_asistencia():
     if session.get('id_rol') != 1:
@@ -1545,7 +1526,7 @@ def chat_buho_estudiante():
     if not isinstance(pregunta, str) or not 1 <= len(pregunta.strip()) <= 600:
         return {'error': 'Escribe una pregunta de entre 1 y 600 caracteres.'}, 400
 
-    clave = os.environ.get('GEMINI_API_KEY', 'AQ.Ab8RN6LFFpCrJfPPrLh7zbFFs9IeDRfNJim0gu8McZi4D2y7CA').strip()
+    clave = os.environ.get('GEMINI_API_KEY', '').strip()
     if not clave:
         return {'error': 'Falta configurar GEMINI_API_KEY en el servidor de AulaNova.'}, 503
 
@@ -1645,4 +1626,6 @@ def chat_buho_estudiante():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Usa el mismo inicio de sesión y cambio de clave que app.py.
+    from app import app as aplicacion
+    aplicacion.run(debug=True, port=5000)
