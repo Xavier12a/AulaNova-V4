@@ -13,6 +13,9 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from academico import app
 from db import get_db_connection
 
+CLAVE_BASE_DATOS = "12345"
+TABLAS_OCULTAS = {"sqlite_sequence", "ConfiguracionAcceso"}
+
 
 @app.template_filter("nota_literal")
 def filtro_nota_literal(valor):
@@ -154,6 +157,11 @@ def iniciar_sesion():
             "login.html", error="Correo o DNI / Contraseña incorrectos."
         )
 
+    if usuario["estado"] != 1:
+        return render_template(
+            "login.html", error="Esta cuenta se encuentra inactiva o dada de baja."
+        )
+
     session.clear()
     session["id_usuario"] = usuario["id_usuario"]
     session["id_rol"] = usuario["id_rol"]
@@ -174,18 +182,23 @@ def comprobar_sesion():
     if request.endpoint in {"static", "login", "logout"}:
         return None
 
+    # Bloquea nuevamente la pestaña Base de datos al navegar fuera de ella
+    if request.endpoint != "base_datos":
+        session.pop("acceso_base_datos", None)
+
     id_usuario = session.get("id_usuario")
     if id_usuario is None:
         return None
 
     with closing(get_db_connection()) as conn:
         usuario = conn.execute("""
-            SELECT id_rol, dni, password, version_clave, clave_temporal
+            SELECT id_rol, dni, password, estado, version_clave, clave_temporal
             FROM Usuarios WHERE id_usuario = ?
         """, (id_usuario,)).fetchone()
 
     if (
         not usuario
+        or usuario["estado"] != 1
         or session.get("version_clave") != usuario["version_clave"]
         or session.get("id_rol") != usuario["id_rol"]
     ):
@@ -198,37 +211,28 @@ def comprobar_sesion():
     return None
 
 
-# Tablas y columnas que puede mostrar el director en la presentación.
-# La primera columna de cada tabla es su identificador y define el orden.
-TABLAS_VISIBLES = {
-    "Usuarios": (
-        "id_usuario", "nombres", "apellidos", "id_rol", "grado", "seccion", "estado"
-    ),
-    "Roles": (
-        "id_rol", "nombre_rol"
-    ),
-    "Cursos": (
-        "id_curso", "nombre_curso", "grado", "seccion", "id_docente"
-    ),
-    "Tareas": (
-        "id_tarea", "id_curso", "titulo", "periodo", "fecha_entrega"
-    ),
-    "EntregasTareas": (
-        "id_entrega", "id_tarea", "id_alumno", "fecha_entrega", "nota_tarea"
-    ),
-    "Asistencia": (
-        "id_asistencia", "id_alumno", "fecha", "estado"
-    ),
-    "Calificaciones": (
-        "id_calificacion", "id_alumno", "id_curso", "periodo", "nota", "es_manual"
-    ),
-    "Comunicados": (
-        "id_comunicado", "titulo", "fecha", "categoria", "destinatario", "id_autor"
-    ),
-}
+def obtener_esquema_db(conn):
+    # Lee tablas y vistas reales de SQLite en orden alfabético (como DB Browser for SQLite)
+    objetos = conn.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type IN ('table', 'view')
+        ORDER BY name ASC
+    """).fetchall()
+    esquema = {}
+    for fila in objetos:
+        nombre = fila["name"]
+        if nombre in TABLAS_OCULTAS or nombre.startswith("sqlite_"):
+            continue
+        cols = [
+            col["name"]
+            for col in conn.execute(f'PRAGMA table_info("{nombre}")').fetchall()
+        ]
+        if cols:
+            esquema[nombre] = tuple(cols)
+    return esquema
 
 
-@app.get("/admin/base-de-datos")
+@app.route("/admin/base-de-datos", methods=["GET", "POST"])
 def base_datos():
     # Visor paginado de solo lectura exclusivo para el rol administrador (id_rol == 1)
     if session.get("id_usuario") is None:
@@ -236,13 +240,40 @@ def base_datos():
     if session.get("id_rol") != 1:
         abort(403)
 
-    tabla = request.args.get("tabla", "Usuarios")
-    if tabla not in TABLAS_VISIBLES:
-        abort(404)
+    error_clave = None
+    if request.method == "POST":
+        verificar_formulario()
+        clave_ingresada = request.form.get("clave_db", "").strip()
+        if hmac.compare_digest(
+            clave_ingresada.encode("utf-8"), CLAVE_BASE_DATOS.encode("utf-8")
+        ):
+            session["acceso_base_datos"] = True
+            return redirect(url_for("base_datos"))
+        error_clave = "Clave incorrecta. No tienes autorización para acceder."
 
-    columnas = TABLAS_VISIBLES[tabla]
+    if not session.get("acceso_base_datos"):
+        with closing(get_db_connection()) as conn:
+            usuario = conn.execute("""
+                SELECT nombres, apellidos FROM Usuarios WHERE id_usuario = ?
+            """, (session["id_usuario"],)).fetchone()
+
+        return render_template(
+            "Admin/base_datos.html",
+            bloqueado=True,
+            error_clave=error_clave,
+            token=token_formulario(),
+            usuario=usuario,
+            tablas=[],
+            tabla="",
+            columnas=(),
+            filas=[],
+            total=0,
+            pagina=1,
+            paginas=1,
+        )
+
     pagina = request.args.get("pagina", default=1, type=int)
-    por_pagina = 25
+    por_pagina = 30
 
     with closing(get_db_connection()) as conn:
         conn.execute("PRAGMA query_only = ON")
@@ -252,7 +283,12 @@ def base_datos():
             SELECT nombres, apellidos FROM Usuarios WHERE id_usuario = ?
         """, (session["id_usuario"],)).fetchone()
 
-        # Los nombres de tabla y columnas proceden de la whitelist TABLAS_VISIBLES
+        esquema = obtener_esquema_db(conn)
+        tabla = request.args.get("tabla")
+        if not tabla or tabla not in esquema:
+            tabla = "Usuarios" if "Usuarios" in esquema else next(iter(esquema))
+
+        columnas = esquema[tabla]
         total = conn.execute(f'SELECT COUNT(*) FROM "{tabla}"').fetchone()[0]
         paginas = max(1, (total + por_pagina - 1) // por_pagina)
         pagina = min(max(1, pagina), paginas)
@@ -262,14 +298,17 @@ def base_datos():
         filas = conn.execute(f"""
             SELECT {campos}
             FROM "{tabla}"
-            ORDER BY "{columnas[0]}" DESC
+            ORDER BY "{columnas[0]}" ASC
             LIMIT ? OFFSET ?
         """, (por_pagina, desplazamiento)).fetchall()
 
     return render_template(
         "Admin/base_datos.html",
+        bloqueado=False,
+        error_clave=None,
+        token=token_formulario(),
         usuario=usuario,
-        tablas=TABLAS_VISIBLES,
+        tablas=list(esquema.keys()),
         tabla=tabla,
         columnas=columnas,
         filas=filas,
@@ -396,7 +435,7 @@ def cambiar_clave():
 
     with closing(get_db_connection()) as conn, conn:
         usuario = conn.execute("""
-            SELECT * FROM Usuarios WHERE id_usuario = ?
+            SELECT * FROM Usuarios WHERE id_usuario = ? AND estado = 1
         """, (id_usuario,)).fetchone()
 
         if not usuario:
@@ -456,7 +495,7 @@ def restablecer_clave(id_docente):
     with closing(get_db_connection()) as conn, conn:
         docente = conn.execute("""
             SELECT id_usuario, nombres, apellidos, dni, version_clave
-            FROM Usuarios WHERE id_usuario = ? AND id_rol = 2
+            FROM Usuarios WHERE id_usuario = ? AND id_rol = 2 AND estado = 1
         """, (id_docente,)).fetchone()
 
         if not docente:
@@ -475,7 +514,7 @@ def restablecer_clave(id_docente):
                 UPDATE Usuarios
                 SET password = ?, clave_temporal = 1,
                     version_clave = version_clave + 1
-                WHERE id_usuario = ? AND id_rol = 2 AND version_clave = ?
+                WHERE id_usuario = ? AND id_rol = 2 AND estado = 1 AND version_clave = ?
             """, (generate_password_hash(temporal), id_docente, version))
 
             if cambio.rowcount != 1:

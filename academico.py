@@ -252,7 +252,7 @@ def notas_del_curso(id_curso):
                 LEFT JOIN Calificaciones c
                   ON c.id_alumno = u.id_usuario
                  AND c.id_curso = ? AND c.periodo = ?
-                WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+                WHERE u.id_rol = 3 AND u.estado = 1 AND u.grado = ? AND u.seccion = ?
                 ORDER BY u.apellidos, u.nombres
             """, (
                 id_curso, periodo, id_curso, periodo,
@@ -377,16 +377,17 @@ def tareas_del_curso(id_curso):
 
             total = conn.execute("""
                 SELECT COUNT(*) FROM Usuarios
-                WHERE id_rol = 3 AND grado = ? AND seccion = ?
+                WHERE id_rol = 3 AND estado = 1 AND grado = ? AND seccion = ?
             """, (curso["grado"], curso["seccion"])).fetchone()[0]
 
             tareas = conn.execute("""
                 SELECT t.*,
-                       COUNT(e.id_entrega) AS entregadas,
-                       COUNT(CASE WHEN e.id_entrega IS NOT NULL
+                       COUNT(u.id_usuario) AS entregadas,
+                       COUNT(CASE WHEN u.id_usuario IS NOT NULL
                                        AND e.nota_tarea IS NULL THEN 1 END) AS por_calificar
                 FROM Tareas t
                 LEFT JOIN EntregasTareas e ON e.id_tarea = t.id_tarea
+                LEFT JOIN Usuarios u ON u.id_usuario = e.id_alumno AND u.estado = 1
                 WHERE t.id_curso = ?
                 GROUP BY t.id_tarea
                 ORDER BY t.id_tarea DESC
@@ -433,7 +434,7 @@ def calificar_entregas(id_tarea):
                   ON e.id_alumno = u.id_usuario AND e.id_tarea = ?
                 LEFT JOIN CerosSinEntrega z
                   ON z.id_alumno = u.id_usuario AND z.id_tarea = ?
-                WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+                WHERE u.id_rol = 3 AND u.estado = 1 AND u.grado = ? AND u.seccion = ?
                 ORDER BY u.apellidos, u.nombres
             """, (
                 id_tarea, id_tarea, tarea["grado"], tarea["seccion"]

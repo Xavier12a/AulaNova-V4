@@ -52,17 +52,77 @@
     .db-pie { margin-top: 16px; }
     .db-pie nav { display: flex; gap: 8px; }
     .db-pie a { text-decoration: none; }
+
+    .db-bloqueo {
+        max-width: 420px;
+        margin: 40px auto;
+        background: white;
+        color: #17283b;
+        border: 1px solid #dce4ed;
+        border-radius: 12px;
+        padding: 28px;
+        text-align: center;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+    }
+    .db-bloqueo h2 {
+        margin: 0 0 8px;
+        font-size: 20px;
+    }
+    .db-bloqueo p {
+        margin: 0 0 18px;
+        color: #526477;
+        font-size: 14px;
+    }
+    .db-bloqueo input[type="password"] {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 15px;
+        margin-bottom: 14px;
+    }
+    .db-bloqueo button {
+        width: 100%;
+        padding: 10px 14px;
+        border: none;
+        border-radius: 8px;
+        background: #08689b;
+        color: white;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+    }
+    .db-bloqueo button:hover { background: #06537c; }
+    .db-error {
+        background: #fef2f2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+        border-radius: 8px;
+        padding: 9px 12px;
+        font-size: 13px;
+        margin-bottom: 14px;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-{# En Usuarios se ocultan los IDs internos para mostrar solo columnas legibles #}
-{% if tabla == 'Usuarios' %}
-    {% set columnas_visibles = columnas | reject('in', ['id_usuario', 'id_rol']) | list %}
-{% else %}
-    {% set columnas_visibles = columnas %}
-{% endif %}
+{% if bloqueado %}
+<section class="db-bloqueo">
+    <h2>Acceso restringido</h2>
+    <p>Ingresa la clave de seguridad para consultar la base de datos del sistema.</p>
 
+    {% if error_clave %}
+    <div class="db-error" role="alert">{{ error_clave }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('base_datos') }}">
+        <input type="hidden" name="token" value="{{ token }}">
+        <input type="password" name="clave_db" placeholder="Contraseña de acceso" required autofocus>
+        <button type="submit">Desbloquear Base de Datos</button>
+    </form>
+</section>
+{% else %}
 <section class="db-panel">
     <div class="db-cabecera">
         <h2>SQLite · aulanova.db</h2>
@@ -87,11 +147,8 @@
             <caption>{{ tabla }} · {{ total }} registro{{ '' if total == 1 else 's' }}</caption>
             <thead>
                 <tr>
-                    {% for columna in columnas_visibles %}
-                        {# Inserta la cabecera 'rol' justo antes de 'estado' en Usuarios #}
-                        {% if tabla == 'Usuarios' and columna == 'estado' %}
-                        <th scope="col">rol</th>
-                        {% endif %}
+                    <th scope="col">#</th>
+                    {% for columna in columnas %}
                     <th scope="col">{{ columna }}</th>
                     {% endfor %}
                 </tr>
@@ -99,33 +156,21 @@
             <tbody>
                 {% for fila in filas %}
                 <tr>
-                    {% for columna in columnas_visibles %}
-                        {# Traduce el id_rol numérico a su nombre de perfil #}
-                        {% if tabla == 'Usuarios' and columna == 'estado' %}
-                        <td>
-                            {% if fila['id_rol'] in [1, '1'] %}
-                                Administrador
-                            {% elif fila['id_rol'] in [2, '2'] %}
-                                Docente
-                            {% elif fila['id_rol'] in [3, '3'] %}
-                                Estudiante
-                            {% else %}
-                                —
-                            {% endif %}
-                        </td>
-                        {% endif %}
-                    <td>
-                        {% if tabla == 'Usuarios' and columna == 'estado' %}
-                            {{ 'Matriculado' if fila[columna] in [1, '1'] else 'No matriculado' }}
+                    <td style="color:#94a3b8;">{{ ((pagina - 1) * 30) + loop.index }}</td>
+                    {% for columna in columnas %}
+                        {% set val = fila[columna] %}
+                        {% if val is none %}
+                            <td style="color:#94a3b8; font-style:italic;">NULL</td>
+                        {% elif columna == 'password' and val is string and val.startswith(('scrypt:', 'pbkdf2:')) %}
+                            <td style="font-family:monospace;">{{ val.split(':')[0] }}:...</td>
                         {% else %}
-                            {{ fila[columna] if fila[columna] is not none else '—' }}
+                            <td>{{ val }}</td>
                         {% endif %}
-                    </td>
                     {% endfor %}
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="{{ columnas_visibles|length + (1 if tabla == 'Usuarios' else 0) }}">
+                    <td colspan="{{ columnas|length + 1 }}">
                         Esta tabla todavía no tiene registros.
                     </td>
                 </tr>
@@ -149,4 +194,5 @@
     </div>
     {% endif %}
 </section>
+{% endif %}
 {% endblock %}

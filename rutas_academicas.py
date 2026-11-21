@@ -136,10 +136,10 @@ def dashboard():
         'SELECT * FROM Usuarios WHERE id_usuario = ?', (session['id_usuario'],)
     ).fetchone()
     total_alumnos = conn.execute(
-        'SELECT COUNT(*) FROM Usuarios WHERE id_rol = 3'
+        'SELECT COUNT(*) FROM Usuarios WHERE id_rol = 3 AND estado = 1'
     ).fetchone()[0]
     total_docentes = conn.execute(
-        'SELECT COUNT(*) FROM Usuarios WHERE id_rol = 2'
+        'SELECT COUNT(*) FROM Usuarios WHERE id_rol = 2 AND estado = 1'
     ).fetchone()[0]
     total_cursos = conn.execute('SELECT COUNT(*) FROM Cursos').fetchone()[0]
     conn.close()
@@ -173,7 +173,7 @@ def dashboard_docente():
     for c in cursos_raw:
         total_al_salon = conn.execute('''
             SELECT COUNT(*) FROM Usuarios
-            WHERE id_rol = 3 AND grado = ? AND seccion = ?
+            WHERE id_rol = 3 AND estado = 1 AND grado = ? AND seccion = ?
         ''', (c['grado'], c['seccion'])).fetchone()[0]
 
         # Suma la matrícula una sola vez por salón aunque el docente dicte varios cursos ahí
@@ -189,13 +189,15 @@ def dashboard_docente():
         pendientes_curso = conn.execute('''
             SELECT COUNT(*) FROM EntregasTareas e
             JOIN Tareas t ON e.id_tarea = t.id_tarea
-            WHERE t.id_curso = ? AND e.nota_tarea IS NULL
+            JOIN Usuarios u ON e.id_alumno = u.id_usuario
+            WHERE t.id_curso = ? AND e.nota_tarea IS NULL AND u.estado = 1
         ''', (c['id_curso'],)).fetchone()[0]
         total_entregas_pendientes += pendientes_curso
 
         notas_b1 = conn.execute('''
-            SELECT COUNT(*) FROM Calificaciones
-            WHERE id_curso = ? AND periodo = 'Bimestre 1' AND nota IS NOT NULL
+            SELECT COUNT(*) FROM Calificaciones cal
+            JOIN Usuarios u ON cal.id_alumno = u.id_usuario
+            WHERE cal.id_curso = ? AND cal.periodo = 'Bimestre 1' AND cal.nota IS NOT NULL AND u.estado = 1
         ''', (c['id_curso'],)).fetchone()[0]
 
         pct_notas = round(notas_b1 / total_al_salon * 100) if total_al_salon else 0
@@ -233,13 +235,13 @@ def dashboard_estudiante():
 
     conn = get_db_connection()
     usuario = conn.execute(
-        'SELECT * FROM Usuarios WHERE id_usuario = ?', (session['id_usuario'],)
+        'SELECT * FROM Usuarios WHERE id_usuario = ? AND estado = 1', (session['id_usuario'],)
     ).fetchone()
 
     cursos = conn.execute('''
         SELECT c.*, u.nombres AS docente_nombres, u.apellidos AS docente_apellidos
         FROM Cursos c
-        LEFT JOIN Usuarios u ON c.id_docente = u.id_usuario
+        LEFT JOIN Usuarios u ON c.id_docente = u.id_usuario AND u.estado = 1
         WHERE c.grado = ? AND c.seccion = ?
         ORDER BY c.nombre_curso ASC
     ''', (usuario['grado'], usuario['seccion'])).fetchall()
@@ -367,7 +369,8 @@ def gestionar_alumnos():
 
     query = '''
         SELECT u.*, r.nombre_rol FROM Usuarios u
-        JOIN Roles r ON u.id_rol = r.id_rol WHERE u.id_rol = 3
+        JOIN Roles r ON u.id_rol = r.id_rol
+        WHERE u.id_rol = 3 AND u.estado = 1
     '''
     params = []
 
@@ -413,6 +416,14 @@ def crear_alumno():
 
     conn = get_db_connection()
     try:
+        existe = conn.execute(
+            'SELECT id_usuario FROM Usuarios WHERE dni = ? OR LOWER(correo) = LOWER(?)',
+            (dni, correo)
+        ).fetchone()
+        if existe:
+            flash(f'El DNI {dni} ya se encuentra registrado en el sistema.')
+            return redirect(url_for('gestionar_alumnos'))
+
         # La familia entra con el DNI y elige su contraseña en el primer ingreso.
         conn.execute('''
             INSERT INTO Usuarios (nombres, apellidos, correo, password, dni, grado, seccion, id_rol, estado, clave_temporal)
@@ -446,9 +457,17 @@ def editar_alumno(id_usuario):
 
     conn = get_db_connection()
     try:
+        existe = conn.execute(
+            'SELECT id_usuario FROM Usuarios WHERE (dni = ? OR LOWER(correo) = LOWER(?)) AND id_usuario != ?',
+            (dni, correo, id_usuario)
+        ).fetchone()
+        if existe:
+            flash(f'No se pudo actualizar: el DNI {dni} ya pertenece a otro usuario.')
+            return redirect(url_for('gestionar_alumnos'))
+
         conn.execute('''
             UPDATE Usuarios SET nombres = ?, apellidos = ?, dni = ?, correo = ?, grado = ?, seccion = ?
-            WHERE id_usuario = ? AND id_rol = 3
+            WHERE id_usuario = ? AND id_rol = 3 AND estado = 1
         ''', (nombres, apellidos, dni, correo, grado, seccion, id_usuario))
         conn.commit()
         flash('Datos del alumno actualizados correctamente.')
@@ -464,11 +483,15 @@ def eliminar_alumno(id_usuario):
     if session.get('id_rol') != 1:
         return redirect(url_for('index'))
 
+    # Borrado lógico: cambia estado a 0 conservando el registro e historial en la base de datos
     conn = get_db_connection()
-    conn.execute('DELETE FROM Usuarios WHERE id_usuario = ? AND id_rol = 3', (id_usuario,))
+    conn.execute(
+        'UPDATE Usuarios SET estado = 0, version_clave = version_clave + 1 WHERE id_usuario = ? AND id_rol = 3',
+        (id_usuario,)
+    )
     conn.commit()
     conn.close()
-    flash('Alumno eliminado del registro.')
+    flash('Alumno dado de baja del registro activo.')
     return redirect(url_for('gestionar_alumnos'))
 
 
@@ -488,6 +511,8 @@ def descargar_plantilla():
         output.getvalue(), mimetype='text/csv',
         headers={'Content-Disposition': 'attachment;filename=plantilla_alumnos.csv'}
     )
+
+
 VISTA_PREVIA_CSV = """
 {% extends "layout.html" %}
 {% block title %}Revisar importación - AulaNova{% endblock %}
@@ -739,7 +764,8 @@ def gestionar_docentes():
                (SELECT COUNT(*) FROM Cursos c WHERE c.id_docente = u.id_usuario) AS total_cursos
         FROM Usuarios u
         JOIN Roles r ON u.id_rol = r.id_rol
-        WHERE u.id_rol = 2 ORDER BY u.apellidos ASC, u.nombres ASC
+        WHERE u.id_rol = 2 AND u.estado = 1
+        ORDER BY u.apellidos ASC, u.nombres ASC
     ''').fetchall()
     usuario = conn.execute(
         'SELECT * FROM Usuarios WHERE id_usuario = ?', (session['id_usuario'],)
@@ -760,6 +786,14 @@ def crear_docente():
 
     conn = get_db_connection()
     try:
+        existe = conn.execute(
+            'SELECT id_usuario FROM Usuarios WHERE dni = ? OR LOWER(correo) = LOWER(?)',
+            (dni, correo)
+        ).fetchone()
+        if existe:
+            flash(f'El DNI {dni} ya se encuentra registrado en el sistema.')
+            return redirect(url_for('gestionar_docentes'))
+
         conn.execute('''
             INSERT INTO Usuarios (nombres, apellidos, correo, password, dni, id_rol, estado, clave_temporal)
             VALUES (?, ?, ?, ?, ?, 2, 1, 1)
@@ -785,9 +819,17 @@ def editar_docente(id_usuario):
 
     conn = get_db_connection()
     try:
+        existe = conn.execute(
+            'SELECT id_usuario FROM Usuarios WHERE (dni = ? OR LOWER(correo) = LOWER(?)) AND id_usuario != ?',
+            (dni, correo, id_usuario)
+        ).fetchone()
+        if existe:
+            flash(f'No se pudo actualizar: el DNI {dni} ya pertenece a otro usuario.')
+            return redirect(url_for('gestionar_docentes'))
+
         conn.execute('''
             UPDATE Usuarios SET nombres = ?, apellidos = ?, dni = ?, correo = ?
-            WHERE id_usuario = ? AND id_rol = 2
+            WHERE id_usuario = ? AND id_rol = 2 AND estado = 1
         ''', (nombres, apellidos, dni, correo, id_usuario))
         conn.commit()
         flash('Datos del docente actualizados correctamente.')
@@ -803,13 +845,16 @@ def eliminar_docente(id_usuario):
     if session.get('id_rol') != 1:
         return redirect(url_for('index'))
 
-    # Desvincula al docente de sus cursos antes de borrar su cuenta para no dejar referencias rotas
+    # Desvincula al docente de sus cursos y aplica borrado lógico (estado = 0)
     conn = get_db_connection()
     conn.execute('UPDATE Cursos SET id_docente = NULL WHERE id_docente = ?', (id_usuario,))
-    conn.execute('DELETE FROM Usuarios WHERE id_usuario = ? AND id_rol = 2', (id_usuario,))
+    conn.execute(
+        'UPDATE Usuarios SET estado = 0, version_clave = version_clave + 1 WHERE id_usuario = ? AND id_rol = 2',
+        (id_usuario,)
+    )
     conn.commit()
     conn.close()
-    flash('Docente eliminado del registro.')
+    flash('Docente dado de baja del registro activo (estado = 0).')
     return redirect(url_for('gestionar_docentes'))
 
 
@@ -844,11 +889,12 @@ def gestionar_cursos():
     cursos = conn.execute('''
         SELECT c.*, u.nombres AS docente_nombres, u.apellidos AS docente_apellidos,
                (SELECT COUNT(*) FROM Tareas t WHERE t.id_curso = c.id_curso) AS total_tareas
-        FROM Cursos c LEFT JOIN Usuarios u ON c.id_docente = u.id_usuario
+        FROM Cursos c LEFT JOIN Usuarios u ON c.id_docente = u.id_usuario AND u.estado = 1
         ORDER BY c.grado ASC, c.seccion ASC, c.nombre_curso ASC
     ''').fetchall()
     docentes = conn.execute('''
-        SELECT * FROM Usuarios WHERE id_rol = 2 ORDER BY apellidos ASC, nombres ASC
+        SELECT * FROM Usuarios WHERE id_rol = 2 AND estado = 1
+        ORDER BY apellidos ASC, nombres ASC
     ''').fetchall()
     usuario = conn.execute(
         'SELECT * FROM Usuarios WHERE id_usuario = ?', (session['id_usuario'],)
@@ -996,7 +1042,7 @@ def gestionar_asistencia():
                 (SELECT observacion FROM Asistencia
                  WHERE id_alumno = u.id_usuario AND id_curso = ? AND fecha = ?) AS observacion_asistencia
             FROM Usuarios u
-            WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+            WHERE u.id_rol = 3 AND u.estado = 1 AND u.grado = ? AND u.seccion = ?
             ORDER BY u.apellidos ASC, u.nombres ASC
         ''', (
             curso_activo['id_curso'], fecha,
@@ -1037,7 +1083,7 @@ def guardar_asistencia():
         return redirect(url_for('gestionar_asistencia'))
 
     alumnos = conn.execute('''
-        SELECT id_usuario FROM Usuarios WHERE id_rol = 3 AND grado = ? AND seccion = ?
+        SELECT id_usuario FROM Usuarios WHERE id_rol = 3 AND estado = 1 AND grado = ? AND seccion = ?
     ''', (curso['grado'], curso['seccion'])).fetchall()
 
     for alumno in alumnos:
@@ -1055,6 +1101,8 @@ def guardar_asistencia():
     conn.close()
     flash(f'Asistencia de {curso["nombre_curso"]} guardada correctamente.')
     return redirect(url_for('gestionar_asistencia', id_curso=curso['id_curso'], fecha=fecha))
+
+
 @app.route('/reporte-asistencia')
 def reporte_asistencia():
     if session.get('id_rol') != 1:
@@ -1072,7 +1120,7 @@ def reporte_asistencia():
     cursos_salon = conn.execute('''
         SELECT c.id_curso, c.nombre_curso, u.nombres AS docente_nombres, u.apellidos AS docente_apellidos
         FROM Cursos c
-        LEFT JOIN Usuarios u ON c.id_docente = u.id_usuario
+        LEFT JOIN Usuarios u ON c.id_docente = u.id_usuario AND u.estado = 1
         WHERE c.grado = ? AND c.seccion = ?
         ORDER BY c.nombre_curso ASC
     ''', (grado, seccion)).fetchall()
@@ -1091,7 +1139,7 @@ def reporte_asistencia():
                 COUNT(a.id_asistencia) AS total_registros
             FROM Usuarios u
             LEFT JOIN Asistencia a ON u.id_usuario = a.id_alumno AND a.id_curso = ?
-            WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+            WHERE u.id_rol = 3 AND u.estado = 1 AND u.grado = ? AND u.seccion = ?
             GROUP BY u.id_usuario
             ORDER BY u.apellidos ASC, u.nombres ASC
         ''', (id_curso, grado, seccion)).fetchall()
@@ -1102,7 +1150,7 @@ def reporte_asistencia():
             FROM Usuarios u
             LEFT JOIN Asistencia a ON u.id_usuario = a.id_alumno AND a.fecha = ? AND a.id_curso = ?
             LEFT JOIN Cursos c ON a.id_curso = c.id_curso
-            WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+            WHERE u.id_rol = 3 AND u.estado = 1 AND u.grado = ? AND u.seccion = ?
             ORDER BY u.apellidos ASC, u.nombres ASC
         ''', (fecha, id_curso, grado, seccion)).fetchall()
     else:
@@ -1116,7 +1164,7 @@ def reporte_asistencia():
                 COUNT(a.id_asistencia) AS total_registros
             FROM Usuarios u
             LEFT JOIN Asistencia a ON u.id_usuario = a.id_alumno
-            WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+            WHERE u.id_rol = 3 AND u.estado = 1 AND u.grado = ? AND u.seccion = ?
             GROUP BY u.id_usuario
             ORDER BY u.apellidos ASC, u.nombres ASC
         ''', (grado, seccion)).fetchall()
@@ -1127,7 +1175,7 @@ def reporte_asistencia():
             FROM Asistencia a
             JOIN Usuarios u ON a.id_alumno = u.id_usuario
             LEFT JOIN Cursos c ON a.id_curso = c.id_curso
-            WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ? AND a.fecha = ?
+            WHERE u.id_rol = 3 AND u.estado = 1 AND u.grado = ? AND u.seccion = ? AND a.fecha = ?
             ORDER BY u.apellidos ASC, u.nombres ASC, nombre_curso ASC
         ''', (grado, seccion, fecha)).fetchall()
 
@@ -1139,7 +1187,7 @@ def reporte_asistencia():
                 SELECT u.dni, u.nombres, u.apellidos, NULL AS estado, NULL AS observacion,
                        '—' AS nombre_curso
                 FROM Usuarios u
-                WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+                WHERE u.id_rol = 3 AND u.estado = 1 AND u.grado = ? AND u.seccion = ?
                 ORDER BY u.apellidos ASC, u.nombres ASC
             ''', (grado, seccion)).fetchall()
 
@@ -1173,11 +1221,11 @@ def gestionar_calificaciones():
 
     cursos = conn.execute('''
         SELECT c.*, u.nombres AS docente_nombres, u.apellidos AS docente_apellidos
-        FROM Cursos c LEFT JOIN Usuarios u ON c.id_docente = u.id_usuario
+        FROM Cursos c LEFT JOIN Usuarios u ON c.id_docente = u.id_usuario AND u.estado = 1
         WHERE c.grado = ? AND c.seccion = ? ORDER BY c.nombre_curso ASC
     ''', (grado, seccion)).fetchall()
     alumnos = conn.execute('''
-        SELECT * FROM Usuarios WHERE id_rol = 3 AND grado = ? AND seccion = ?
+        SELECT * FROM Usuarios WHERE id_rol = 3 AND estado = 1 AND grado = ? AND seccion = ?
         ORDER BY apellidos ASC, nombres ASC
     ''', (grado, seccion)).fetchall()
     notas_raw = conn.execute('''
@@ -1228,7 +1276,7 @@ def docente_curso(id_curso):
         return redirect(url_for('docente_curso', id_curso=id_curso, periodo=periodo))
 
     alumnos = conn.execute('''
-        SELECT * FROM Usuarios WHERE id_rol = 3 AND grado = ? AND seccion = ?
+        SELECT * FROM Usuarios WHERE id_rol = 3 AND estado = 1 AND grado = ? AND seccion = ?
         ORDER BY apellidos ASC, nombres ASC
     ''', (curso['grado'], curso['seccion'])).fetchall()
     notas_raw = conn.execute('''
@@ -1282,18 +1330,22 @@ def docente_tareas(id_curso):
         return redirect(url_for('docente_tareas', id_curso=id_curso))
 
     total_alumnos_salon = conn.execute('''
-        SELECT COUNT(*) FROM Usuarios WHERE id_rol = 3 AND grado = ? AND seccion = ?
+        SELECT COUNT(*) FROM Usuarios WHERE id_rol = 3 AND estado = 1 AND grado = ? AND seccion = ?
     ''', (curso['grado'], curso['seccion'])).fetchone()[0]
     tareas_raw = conn.execute(
         'SELECT * FROM Tareas WHERE id_curso = ? ORDER BY id_tarea DESC', (id_curso,)
     ).fetchall()
     tareas_enriquecidas = []
     for tarea in tareas_raw:
-        entregadas = conn.execute(
-            'SELECT COUNT(*) FROM EntregasTareas WHERE id_tarea = ?', (tarea['id_tarea'],)
-        ).fetchone()[0]
+        entregadas = conn.execute('''
+            SELECT COUNT(*) FROM EntregasTareas e
+            JOIN Usuarios u ON e.id_alumno = u.id_usuario
+            WHERE e.id_tarea = ? AND u.estado = 1
+        ''', (tarea['id_tarea'],)).fetchone()[0]
         por_calificar = conn.execute('''
-            SELECT COUNT(*) FROM EntregasTareas WHERE id_tarea = ? AND nota_tarea IS NULL
+            SELECT COUNT(*) FROM EntregasTareas e
+            JOIN Usuarios u ON e.id_alumno = u.id_usuario
+            WHERE e.id_tarea = ? AND e.nota_tarea IS NULL AND u.estado = 1
         ''', (tarea['id_tarea'],)).fetchone()[0]
         pct = round(entregadas / total_alumnos_salon * 100) if total_alumnos_salon else 0
         tareas_enriquecidas.append({
@@ -1355,7 +1407,7 @@ def docente_ver_entregas(id_tarea):
                e.id_entrega, e.archivo_alumno, e.fecha_entrega, e.nota_tarea, e.comentario_docente
         FROM Usuarios u
         LEFT JOIN EntregasTareas e ON u.id_usuario = e.id_alumno AND e.id_tarea = ?
-        WHERE u.id_rol = 3 AND u.grado = ? AND u.seccion = ?
+        WHERE u.id_rol = 3 AND u.estado = 1 AND u.grado = ? AND u.seccion = ?
         ORDER BY u.apellidos ASC, u.nombres ASC
     ''', (id_tarea, tarea['grado'], tarea['seccion'])).fetchall()
     conn.close()
@@ -1408,7 +1460,7 @@ def libreta_academica():
     id_alumno = request.args.get('id_alumno', type=int)
 
     alumnos = conn.execute('''
-        SELECT * FROM Usuarios WHERE id_rol = 3 AND grado = ? AND seccion = ?
+        SELECT * FROM Usuarios WHERE id_rol = 3 AND estado = 1 AND grado = ? AND seccion = ?
         ORDER BY apellidos ASC, nombres ASC
     ''', (grado, seccion)).fetchall()
 
@@ -1418,11 +1470,11 @@ def libreta_academica():
 
     if id_alumno:
         alumno_seleccionado = conn.execute(
-            'SELECT * FROM Usuarios WHERE id_usuario = ? AND id_rol = 3', (id_alumno,)
+            'SELECT * FROM Usuarios WHERE id_usuario = ? AND id_rol = 3 AND estado = 1', (id_alumno,)
         ).fetchone()
         cursos = conn.execute('''
             SELECT c.*, u.nombres AS docente_nombres, u.apellidos AS docente_apellidos
-            FROM Cursos c LEFT JOIN Usuarios u ON c.id_docente = u.id_usuario
+            FROM Cursos c LEFT JOIN Usuarios u ON c.id_docente = u.id_usuario AND u.estado = 1
             WHERE c.grado = ? AND c.seccion = ? ORDER BY c.nombre_curso ASC
         ''', (grado, seccion)).fetchall()
         raw_notas = conn.execute('''
@@ -1546,7 +1598,7 @@ def chat_buho_estudiante():
             FROM Usuarios u
             JOIN Cursos c ON c.grado = u.grado AND c.seccion = u.seccion
             JOIN Tareas t ON t.id_curso = c.id_curso
-            WHERE u.id_usuario = ? AND u.id_rol = 3
+            WHERE u.id_usuario = ? AND u.id_rol = 3 AND u.estado = 1
             ORDER BY t.fecha_entrega ASC, c.nombre_curso ASC, t.id_tarea ASC
         ''', (session['id_usuario'],)).fetchall()
 
