@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es"{% if modo_daltonico|default(false) %} class="modo-daltonico"{% endif %}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -34,6 +34,19 @@
         }
         .perfil-opciones a:hover,
         .perfil-opciones a:focus { background: #edf4fa; }
+
+        .preferencias-vista { border-top: 1px solid #dce4ed; padding: 6px 0; }
+        .preferencias-vista > summary { padding: 10px 12px; color: #17283b; }
+        .preferencias-vista > summary:hover { background: #edf4fa; }
+        .preferencias-vista label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        .preferencias-vista button { margin: 4px 12px 8px; padding: 5px 10px; }
+        .preferencias-vista :focus-visible { outline: 2px solid #075985; outline-offset: 1px; }
 
         .sidebar-badge {
             margin-left: auto;
@@ -194,8 +207,26 @@
                         {% endif %}
                         <span aria-hidden="true">⌄</span>
                     </summary>
+
                     <div class="perfil-opciones">
                         <a href="{{ url_for('cambiar_clave') }}">Cambiar contraseña</a>
+
+                        <details class="preferencias-vista">
+                            <summary>Preferencias de visualización</summary>
+                            {% if url_preferencia_visual is defined %}
+                            <form method="post" action="{{ url_preferencia_visual }}">
+                                <input type="hidden" name="token" value="{{ token_preferencia_visual }}">
+                            {% endif %}
+                                <label>
+                                    <input type="checkbox" id="modoDaltonico" name="modo_daltonico" value="1"
+                                           {% if modo_daltonico|default(false) %}checked{% endif %}>
+                                    Modo daltónico
+                                </label>
+                            {% if url_preferencia_visual is defined %}
+                                <button type="submit">Guardar preferencia</button>
+                            </form>
+                            {% endif %}
+                        </details>
                     </div>
                 </details>
 
@@ -225,6 +256,12 @@
         }
 
         const perfil = document.getElementById('menuPerfil');
+        const modoDaltonico = document.getElementById('modoDaltonico');
+
+        // Aplica la preferencia visual de esta cuenta a la página abierta.
+        modoDaltonico.addEventListener('change', () => {
+            document.documentElement.classList.toggle('modo-daltonico', modoDaltonico.checked);
+        });
 
         // Cierra el desplegable del perfil al hacer clic fuera o presionar Escape
         document.addEventListener('click', event => {

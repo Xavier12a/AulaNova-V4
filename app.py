@@ -5,13 +5,14 @@ import secrets
 from contextlib import closing
 
 from flask import (
-    abort, flash, redirect, render_template, render_template_string,
+    abort, flash, g, redirect, render_template, render_template_string,
     request, session, url_for
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from academico import app
 from db import get_db_connection
+
 
 CLAVE_BASE_DATOS = "12345"
 TABLAS_OCULTAS = {"sqlite_sequence", "ConfiguracionAcceso"}
@@ -22,6 +23,7 @@ def filtro_nota_literal(valor):
     """Convierte una calificación vigesimal (0-20) a la escala literal MINEDU (AD, A, B, C)."""
     if valor is None or isinstance(valor, bool):
         return ""
+
     try:
         numero = float(valor)
     except (TypeError, ValueError):
@@ -41,16 +43,19 @@ def filtro_con_literal(valor, decimales=1):
     """Formatea una nota numérica junto a su equivalencia literal MINEDU (ej. '18.5 (AD)')."""
     if valor is None or isinstance(valor, bool):
         return "-"
+
     try:
         numero = float(valor)
     except (TypeError, ValueError):
         return str(valor)
 
     literal = filtro_nota_literal(numero)
+
     if decimales is None:
         texto_num = f"{numero:g}"
     else:
         texto_num = f"{numero:.{int(decimales)}f}"
+
     return f"{texto_num} ({literal})"
 
 
@@ -81,6 +86,7 @@ def preparar_cuentas():
                 valor TEXT NOT NULL
             )
         """)
+
         conn.execute("""
             INSERT OR IGNORE INTO ConfiguracionAcceso (nombre, valor)
             VALUES ('firma_sesion', ?)
@@ -130,6 +136,7 @@ def token_formulario():
     # Genera o reutiliza un token CSRF por sesión para formularios sensibles
     if "token_formulario" not in session:
         session["token_formulario"] = secrets.token_urlsafe(32)
+
     return session["token_formulario"]
 
 
@@ -192,8 +199,10 @@ def comprobar_sesion():
 
     with closing(get_db_connection()) as conn:
         usuario = conn.execute("""
-            SELECT id_rol, dni, password, estado, version_clave, clave_temporal
-            FROM Usuarios WHERE id_usuario = ?
+            SELECT id_rol, dni, password, estado, version_clave,
+                   clave_temporal, modo_daltonico
+            FROM Usuarios
+            WHERE id_usuario = ?
         """, (id_usuario,)).fetchone()
 
     if (
@@ -208,7 +217,76 @@ def comprobar_sesion():
     if requiere_cambio(usuario) and request.endpoint != "cambiar_clave":
         return redirect(url_for("cambiar_clave"))
 
+    # Usa la preferencia guardada en la cuenta para mostrar la página actual.
+    g.modo_daltonico = bool(usuario["modo_daltonico"])
+    g.puede_guardar_preferencia = not requiere_cambio(usuario)
+
     return None
+
+
+def filtros_de_asistencia():
+    # Conserva los filtros que utiliza la pantalla Tomar Asistencia.
+    return {
+        nombre: request.args[nombre]
+        for nombre in ("id_curso", "curso", "grado", "seccion", "fecha")
+        if nombre in request.args
+    }
+
+
+@app.context_processor
+def preferencias_visuales_del_perfil():
+    # Entrega a layout.html la preferencia de la cuenta que inició sesión.
+    contexto = {"modo_daltonico": g.get("modo_daltonico", False)}
+
+    if not g.get("puede_guardar_preferencia", False):
+        return contexto
+
+    parametros = {}
+    if request.endpoint == "gestionar_asistencia":
+        parametros = filtros_de_asistencia()
+        parametros["origen"] = "asistencia"
+
+    contexto["url_preferencia_visual"] = url_for(
+        "guardar_preferencia_visual", **parametros
+    )
+    contexto["token_preferencia_visual"] = token_formulario()
+    return contexto
+
+
+@app.post("/perfil/preferencias-visuales")
+def guardar_preferencia_visual():
+    # Guarda la elección únicamente para el usuario de la sesión actual.
+    id_usuario = session.get("id_usuario")
+    if id_usuario is None:
+        return redirect(url_for("index"))
+
+    verificar_formulario()
+
+    # Una casilla desmarcada no envía su nombre en el formulario.
+    valor = request.form.get("modo_daltonico", "0")
+    if valor not in ("0", "1"):
+        abort(400, "La preferencia visual recibida no es válida.")
+
+    with closing(get_db_connection()) as conn, conn:
+        cambio = conn.execute("""
+            UPDATE Usuarios
+            SET modo_daltonico = ?
+            WHERE id_usuario = ? AND estado = 1 AND version_clave = ?
+        """, (int(valor), id_usuario, session["version_clave"]))
+
+        if cambio.rowcount != 1:
+            session.clear()
+            return redirect(url_for("index"))
+
+    if valor == "1":
+        flash("El modo daltónico quedó activado para tu cuenta.")
+    else:
+        flash("El modo daltónico quedó desactivado para tu cuenta.")
+
+    if request.args.get("origen") == "asistencia" and session.get("id_rol") == 2:
+        return redirect(url_for("gestionar_asistencia", **filtros_de_asistencia()))
+
+    return redirect(url_for("index"))
 
 
 def obtener_esquema_db(conn):
@@ -218,17 +296,23 @@ def obtener_esquema_db(conn):
         WHERE type IN ('table', 'view')
         ORDER BY name ASC
     """).fetchall()
+
     esquema = {}
+
     for fila in objetos:
         nombre = fila["name"]
+
         if nombre in TABLAS_OCULTAS or nombre.startswith("sqlite_"):
             continue
+
         cols = [
             col["name"]
             for col in conn.execute(f'PRAGMA table_info("{nombre}")').fetchall()
         ]
+
         if cols:
             esquema[nombre] = tuple(cols)
+
     return esquema
 
 
@@ -237,18 +321,22 @@ def base_datos():
     # Visor paginado de solo lectura exclusivo para el rol administrador (id_rol == 1)
     if session.get("id_usuario") is None:
         return redirect(url_for("index"))
+
     if session.get("id_rol") != 1:
         abort(403)
 
     error_clave = None
+
     if request.method == "POST":
         verificar_formulario()
         clave_ingresada = request.form.get("clave_db", "").strip()
+
         if hmac.compare_digest(
             clave_ingresada.encode("utf-8"), CLAVE_BASE_DATOS.encode("utf-8")
         ):
             session["acceso_base_datos"] = True
             return redirect(url_for("base_datos"))
+
         error_clave = "Clave incorrecta. No tienes autorización para acceder."
 
     if not session.get("acceso_base_datos"):
@@ -285,6 +373,7 @@ def base_datos():
 
         esquema = obtener_esquema_db(conn)
         tabla = request.args.get("tabla")
+
         if not tabla or tabla not in esquema:
             tabla = "Usuarios" if "Usuarios" in esquema else next(iter(esquema))
 
@@ -295,6 +384,7 @@ def base_datos():
         desplazamiento = (pagina - 1) * por_pagina
 
         campos = ", ".join(f'"{columna}"' for columna in columnas)
+
         filas = conn.execute(f"""
             SELECT {campos}
             FROM "{tabla}"
@@ -322,6 +412,7 @@ PANTALLA_CLAVE = """
 {% extends "layout.html" %}
 {% block title %}{{ titulo }} - AulaNova{% endblock %}
 {% block header_title %}{{ titulo }}{% endblock %}
+
 {% block extra_style %}
 <style>
     .clave-panel {
@@ -385,12 +476,14 @@ PANTALLA_CLAVE = """
 
             <label for="nueva">Nueva contraseña</label>
             <input id="nueva" name="nueva" type="password"
-                   minlength="8" maxlength="128" autocomplete="new-password" required>
+                   minlength="8" maxlength="128"
+                   autocomplete="new-password" required>
             <small>Usa entre 8 y 128 caracteres.</small>
 
             <label for="repetida">Repetir nueva contraseña</label>
             <input id="repetida" name="repetida" type="password"
-                   minlength="8" maxlength="128" autocomplete="new-password" required>
+                   minlength="8" maxlength="128"
+                   autocomplete="new-password" required>
 
             <div>
                 <button type="submit">Guardar contraseña</button>
@@ -480,8 +573,12 @@ def cambiar_clave():
                 return redirect(url_for("index"))
 
     return render_template_string(
-        PANTALLA_CLAVE, titulo="Cambiar contraseña", modo="personal",
-        usuario=usuario, obligatorio=requiere_cambio(usuario), error=error,
+        PANTALLA_CLAVE,
+        titulo="Cambiar contraseña",
+        modo="personal",
+        usuario=usuario,
+        obligatorio=requiere_cambio(usuario),
+        error=error,
         token=token_formulario()
     )
 
@@ -522,13 +619,21 @@ def restablecer_clave(id_docente):
                 return redirect(url_for("gestionar_docentes"))
 
             return render_template_string(
-                PANTALLA_CLAVE, titulo="Contraseña temporal", modo="resultado",
-                usuario=admin, docente=docente, temporal=temporal
+                PANTALLA_CLAVE,
+                titulo="Contraseña temporal",
+                modo="resultado",
+                usuario=admin,
+                docente=docente,
+                temporal=temporal
             )
 
     return render_template_string(
-        PANTALLA_CLAVE, titulo="Restablecer contraseña", modo="confirmar",
-        usuario=admin, docente=docente, token=token_formulario()
+        PANTALLA_CLAVE,
+        titulo="Restablecer contraseña",
+        modo="confirmar",
+        usuario=admin,
+        docente=docente,
+        token=token_formulario()
     )
 
 

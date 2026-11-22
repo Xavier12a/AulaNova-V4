@@ -46,6 +46,8 @@ def init_db():
                 id_rol INTEGER,
                 estado INTEGER DEFAULT 1,
                 clave_temporal INTEGER NOT NULL DEFAULT 0,
+                modo_daltonico INTEGER NOT NULL DEFAULT 0
+                    CHECK (modo_daltonico IN (0, 1)),
                 FOREIGN KEY (id_rol) REFERENCES Roles (id_rol)
             )
         ''')
@@ -54,10 +56,20 @@ def init_db():
         cols_usuarios = [
             row['name'] for row in conn.execute('PRAGMA table_info(Usuarios)')
         ]
+
         if 'clave_temporal' not in cols_usuarios:
             conn.execute('''
                 ALTER TABLE Usuarios
                 ADD COLUMN clave_temporal INTEGER NOT NULL DEFAULT 0
+            ''')
+
+        # Añade la preferencia visual a las cuentas existentes.
+        # 0 = desactivado, 1 = activado por el usuario.
+        if 'modo_daltonico' not in cols_usuarios:
+            conn.execute('''
+                ALTER TABLE Usuarios
+                ADD COLUMN modo_daltonico INTEGER NOT NULL DEFAULT 0
+                    CHECK (modo_daltonico IN (0, 1))
             ''')
 
         conn.execute('''
@@ -76,8 +88,10 @@ def init_db():
         cols_cursos = [
             row['name'] for row in conn.execute('PRAGMA table_info(Cursos)')
         ]
+
         if 'seccion' not in cols_cursos:
             conn.execute('ALTER TABLE Cursos RENAME TO Cursos_old')
+
             conn.execute('''
                 CREATE TABLE Cursos (
                     id_curso INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,11 +103,13 @@ def init_db():
                     UNIQUE(nombre_curso, grado, seccion)
                 )
             ''')
+
             conn.execute('''
                 INSERT INTO Cursos (id_curso, nombre_curso, grado, seccion, id_docente)
                 SELECT id_curso, nombre_curso, grado, 'A', id_docente
                 FROM Cursos_old
             ''')
+
             conn.execute('DROP TABLE Cursos_old')
 
         conn.execute('''
@@ -114,9 +130,12 @@ def init_db():
         cols_asist = [
             row['name'] for row in conn.execute('PRAGMA table_info(Asistencia)')
         ]
+
         if 'id_curso' not in cols_asist:
             obs_expr = 'observacion' if 'observacion' in cols_asist else 'NULL'
+
             conn.execute('ALTER TABLE Asistencia RENAME TO Asistencia_old')
+
             conn.execute('''
                 CREATE TABLE Asistencia (
                     id_asistencia INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,6 +149,7 @@ def init_db():
                     UNIQUE(id_alumno, id_curso, fecha)
                 )
             ''')
+
             conn.execute(f'''
                 INSERT INTO Asistencia (
                     id_asistencia, id_alumno, id_curso, fecha, estado, observacion
@@ -137,6 +157,7 @@ def init_db():
                 SELECT id_asistencia, id_alumno, 0, fecha, estado, {obs_expr}
                 FROM Asistencia_old
             ''')
+
             conn.execute('DROP TABLE Asistencia_old')
 
         conn.execute('''
@@ -172,6 +193,7 @@ def init_db():
         cols_comunicados = {
             row['name'] for row in conn.execute('PRAGMA table_info(Comunicados)')
         }
+
         for columna, definicion in [
             ('categoria', "TEXT DEFAULT 'General'"),
             ('destinatario', "TEXT DEFAULT 'Toda la Comunidad'"),
@@ -215,11 +237,15 @@ def init_db():
         cols_entregas = {
             row['name'] for row in conn.execute('PRAGMA table_info(EntregasTareas)')
         }
+
         if 'comentario_docente' not in cols_entregas:
-            conn.execute('ALTER TABLE EntregasTareas ADD COLUMN comentario_docente TEXT')
+            conn.execute(
+                'ALTER TABLE EntregasTareas ADD COLUMN comentario_docente TEXT'
+            )
 
         # Inserta los roles base si la tabla está vacía
         roles_existentes = conn.execute('SELECT COUNT(*) FROM Roles').fetchone()[0]
+
         if roles_existentes == 0:
             conn.execute("INSERT INTO Roles (nombre_rol) VALUES ('Administrador')")
             conn.execute("INSERT INTO Roles (nombre_rol) VALUES ('Docente')")

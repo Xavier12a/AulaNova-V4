@@ -98,6 +98,63 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
         background: #fff;
     }
 
+    /* Modo daltónico para la consulta de asistencia del estudiante y su apoderado.
+       La clase modo-daltonico se activa desde el menú del perfil en layout.html. */
+    html.modo-daltonico #panel-asistencias [data-tipo="Presente"] {
+        --asist-fondo: #dbeafe;
+        --asist-texto: #17365d;
+    }
+
+    html.modo-daltonico #panel-asistencias [data-tipo="Tardanza"] {
+        --asist-fondo: #fff1c2;
+        --asist-texto: #533900;
+    }
+
+    html.modo-daltonico #panel-asistencias [data-tipo="Ausente"] {
+        --asist-fondo: #ede2ff;
+        --asist-texto: #422268;
+    }
+
+    html.modo-daltonico #panel-asistencias [data-tipo="Tardanza Justificada"] {
+        --asist-fondo: #d5f3f1;
+        --asist-texto: #124a4b;
+    }
+
+    html.modo-daltonico #panel-asistencias [data-tipo="Falta Justificada"],
+    html.modo-daltonico #panel-asistencias [data-tipo="Justificada"] {
+        --asist-fondo: #e8eaed;
+        --asist-texto: #27313d;
+    }
+
+    html.modo-daltonico #panel-asistencias .ab-chip,
+    html.modo-daltonico #panel-asistencias .kpi-icon {
+        background: var(--asist-fondo, #e8eaed) !important;
+        color: var(--asist-texto, #27313d) !important;
+    }
+
+    html.modo-daltonico #panel-asistencias .ab-chip {
+        border: 1px solid currentColor;
+    }
+
+    html.modo-daltonico #panel-asistencias .kpi-info h3 {
+        color: var(--asist-texto, #27313d) !important;
+    }
+
+    html.modo-daltonico #panel-asistencias .asist-progress-fill {
+        background: #24558a !important;
+    }
+
+    html.modo-daltonico #panel-asistencias .asist-progress-top span {
+        color: #17365d !important;
+    }
+
+    /* El subrayado y el borde doble también identifican el filtro seleccionado. */
+    html.modo-daltonico #filtrosAsistenciaEstado .filter-pill-btn.active {
+        text-decoration: underline;
+        outline: 3px double currentColor;
+        outline-offset: -4px;
+    }
+
     .buho-panel {
         position: fixed;
         right: 18px;
@@ -553,6 +610,7 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
                     {% set entrega = entregas_dict.get(t.id_tarea) %}
                     {% set esta_calificada = entrega and entrega.nota_tarea is not none %}
                     {% set comentario_doc = entrega.comentario_docente if entrega else none %}
+
                     <article class="st-task-card" id="tarea-{{ t.id_tarea }}" tabindex="-1">
                         <div>
                             <div class="st-task-top">
@@ -624,7 +682,8 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
                             {# Bloquea el reenvío si la tarea ya tiene nota registrada #}
                             {% if esta_calificada %}
                                 <div style="margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #f1f5f9; border: 1px solid #cbd5e1; font-size: 12px; color: #475569; display: flex; align-items: center; gap: 7px;">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.2" style="flex-shrink: 0;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                         stroke="#64748b" stroke-width="2.2" style="flex-shrink: 0;">
                                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                                         <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                                     </svg>
@@ -769,6 +828,7 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
                                     {% endif %}
                                 </span>
                             </td>
+
                             {% for numero in range(1, 5) %}
                                 {% set n = notas_alumno.get((c.id_curso, 'Bimestre ' ~ numero)) %}
                                 <td style="text-align: center;">
@@ -898,7 +958,7 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
                 </tbody>
             </table>
         {% else %}
-            <p style="color: #94a3b8; font-size: 13px;">Aún no hay actividades registradas.</p>
+            <p style="color: #94a3b8; font-size: 13px;">No hay actividades registradas.</p>
         {% endif %}
     </div>
 </section>
@@ -908,7 +968,7 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
      ========================================================= -->
 <section id="panel-asistencias" class="student-tab-panel">
     <div class="kpi-grid-4">
-        <div class="kpi-card">
+        <div class="kpi-card" data-tipo="Presente">
             <div class="kpi-info">
                 <span>Asistencias (Presente)</span>
                 <h3 style="color: #15803d;">{{ asist_stats.presente or 0 }}</h3>
@@ -920,7 +980,7 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
             </div>
         </div>
 
-        <div class="kpi-card">
+        <div class="kpi-card" data-tipo="Tardanza">
             <div class="kpi-info">
                 <span>Tardanzas</span>
                 <h3 style="color: #b45309;">{{ asist_stats.tardanza or 0 }}</h3>
@@ -933,7 +993,7 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
             </div>
         </div>
 
-        <div class="kpi-card">
+        <div class="kpi-card" data-tipo="Ausente">
             <div class="kpi-info">
                 <span>Faltas Injustificadas</span>
                 <h3 style="color: #b91c1c;">{{ asist_stats.ausente or 0 }}</h3>
@@ -946,7 +1006,7 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
             </div>
         </div>
 
-        <div class="kpi-card">
+        <div class="kpi-card" data-tipo="Justificada">
             <div class="kpi-info">
                 <span>Justificadas</span>
                 <h3 style="color: #0369a1;">{{ asist_stats.justificada or 0 }}</h3>
@@ -988,25 +1048,32 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
         {% if ultimas_asistencias %}
             <div style="margin-top: 16px;">
                 <div class="asist-filter-bar">
-                    <div class="filter-pills-row" id="filtrosAsistenciaEstado" style="margin: 0;" aria-label="Filtrar asistencias por estado">
-                        <button type="button" class="filter-pill-btn active" onclick="filtrarAsistencias('todos', this)">
+                    <div class="filter-pills-row" id="filtrosAsistenciaEstado"
+                         style="margin: 0;" aria-label="Filtrar asistencias por estado">
+                        <button type="button" class="filter-pill-btn active"
+                                onclick="filtrarAsistencias('todos', this)">
                             Todos ({{ ultimas_asistencias|length }})
                         </button>
-                        <button type="button" class="filter-pill-btn" onclick="filtrarAsistencias('Presente', this)">
+                        <button type="button" class="filter-pill-btn"
+                                onclick="filtrarAsistencias('Presente', this)">
                             Presentes
                         </button>
-                        <button type="button" class="filter-pill-btn" onclick="filtrarAsistencias('Tardanza', this)">
+                        <button type="button" class="filter-pill-btn"
+                                onclick="filtrarAsistencias('Tardanza', this)">
                             Tardanzas
                         </button>
-                        <button type="button" class="filter-pill-btn" onclick="filtrarAsistencias('Ausente', this)">
+                        <button type="button" class="filter-pill-btn"
+                                onclick="filtrarAsistencias('Ausente', this)">
                             Faltas
                         </button>
-                        <button type="button" class="filter-pill-btn" onclick="filtrarAsistencias('Justificada', this)">
+                        <button type="button" class="filter-pill-btn"
+                                onclick="filtrarAsistencias('Justificada', this)">
                             Justificadas
                         </button>
                     </div>
 
-                    <select id="filtroCursoAsistencia" class="asist-course-select" onchange="aplicarFiltrosAsistencia()">
+                    <select id="filtroCursoAsistencia" class="asist-course-select"
+                            onchange="aplicarFiltrosAsistencia()">
                         <option value="todos">Todas las asignaturas</option>
                         {% for c in cursos %}
                             <option value="{{ c.nombre_curso }}">{{ c.nombre_curso }}</option>
@@ -1029,9 +1096,12 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
                         {% for ua in ultimas_asistencias %}
                             {# Agrupa tardanzas y faltas justificadas bajo una misma categoría de filtro #}
                             {% set cat_filtro = 'Justificada' if 'Justificada' in ua.estado else ua.estado %}
-                            <tr data-estado="{{ cat_filtro }}" data-curso="{{ ua.nombre_curso }}">
+                            <tr data-tipo="{{ ua.estado }}"
+                                data-estado="{{ cat_filtro }}"
+                                data-curso="{{ ua.nombre_curso }}">
                                 <td><strong>{{ ua.fecha }}</strong></td>
-                                <td class="asist-dia-semana" data-fecha="{{ ua.fecha }}" style="color: #475569; text-transform: capitalize;">—</td>
+                                <td class="asist-dia-semana" data-fecha="{{ ua.fecha }}"
+                                    style="color: #475569; text-transform: capitalize;">—</td>
                                 <td><span class="course-tag">{{ ua.nombre_curso }}</span></td>
                                 <td>
                                     {% if ua.estado == 'Presente' %}
@@ -1076,17 +1146,22 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
 
         {% if comunicados_recientes %}
             <div class="com-toolbar">
-                <div class="filter-pills-row" id="filtrosComunicados" style="margin: 0;" aria-label="Filtrar comunicados por categoría">
-                    <button type="button" class="filter-pill-btn active" onclick="filtrarComunicados('todos', this)">
+                <div class="filter-pills-row" id="filtrosComunicados" style="margin: 0;"
+                     aria-label="Filtrar comunicados por categoría">
+                    <button type="button" class="filter-pill-btn active"
+                            onclick="filtrarComunicados('todos', this)">
                         Todos ({{ comunicados_recientes|length }})
                     </button>
-                    <button type="button" class="filter-pill-btn" onclick="filtrarComunicados('Académico', this)">
+                    <button type="button" class="filter-pill-btn"
+                            onclick="filtrarComunicados('Académico', this)">
                         Académico
                     </button>
-                    <button type="button" class="filter-pill-btn" onclick="filtrarComunicados('Reunión', this)">
+                    <button type="button" class="filter-pill-btn"
+                            onclick="filtrarComunicados('Reunión', this)">
                         Reunión
                     </button>
-                    <button type="button" class="filter-pill-btn" onclick="filtrarComunicados('General', this)">
+                    <button type="button" class="filter-pill-btn"
+                            onclick="filtrarComunicados('General', this)">
                         General
                     </button>
                 </div>
@@ -1262,11 +1337,16 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
     // Abre la pestaña correspondiente al hash de la URL (incluidos enlaces a #tarea-ID)
     function sincronizarDesdeHash() {
         const hash = window.location.hash.replace('#', '');
+
         if (hash.startsWith('tarea-')) {
             activarVista('tareas', false);
             const tarjeta = document.getElementById(hash);
+
             if (tarjeta) {
-                requestAnimationFrame(() => tarjeta.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+                requestAnimationFrame(() => tarjeta.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                }));
             }
         } else if (VISTAS_VALIDAS.includes(hash)) {
             activarVista(hash, false);
@@ -1284,9 +1364,11 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
 
     function filtrarAsistencias(estado, botonActivo) {
         estadoAsistenciaActivo = estado;
+
         document.querySelectorAll('#filtrosAsistenciaEstado .filter-pill-btn').forEach(btn => {
             btn.classList.remove('active');
         });
+
         if (botonActivo) botonActivo.classList.add('active');
         aplicarFiltrosAsistencia();
     }
@@ -1299,6 +1381,7 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
         document.querySelectorAll('#tablaAsistenciasEstudiante tbody tr').forEach(fila => {
             const coincideEstado =
                 estadoAsistenciaActivo === 'todos' || fila.dataset.estado === estadoAsistenciaActivo;
+
             const coincideCurso =
                 cursoActivo === 'todos' || fila.dataset.curso === cursoActivo;
 
@@ -1310,9 +1393,11 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
 
     function filtrarComunicados(categoria, botonActivo) {
         categoriaComunicadoActiva = categoria;
+
         document.querySelectorAll('#filtrosComunicados .filter-pill-btn').forEach(btn => {
             btn.classList.remove('active');
         });
+
         if (botonActivo) botonActivo.classList.add('active');
         aplicarFiltroComunicados();
     }
@@ -1325,9 +1410,11 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
 
         document.querySelectorAll('#listaComunicadosCompleta .comunicado-item').forEach(item => {
             const catItem = (item.dataset.categoria || 'General').toLowerCase();
+
             const coincideCat =
                 categoriaComunicadoActiva === 'todos' ||
                 catItem === categoriaComunicadoActiva.toLowerCase();
+
             const coincideTexto = !termino || (item.dataset.texto || '').includes(termino);
 
             if (coincideCat && coincideTexto) {
@@ -1350,7 +1437,9 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
         if (fechaStr) {
             const fechaObj = new Date(fechaStr + 'T00:00:00');
             if (!isNaN(fechaObj)) {
-                celda.textContent = new Intl.DateTimeFormat('es-PE', { weekday: 'long' }).format(fechaObj);
+                celda.textContent = new Intl.DateTimeFormat('es-PE', {
+                    weekday: 'long'
+                }).format(fechaObj);
             }
         }
     });
@@ -1384,6 +1473,7 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
         if (plazo) {
             const hoy = {{ hoy|tojson }};
             const diferencia = (Date.parse(plazo.dateTime) - Date.parse(hoy)) / 86400000;
+
             const fecha = new Intl.DateTimeFormat('es-PE', {
                 day: 'numeric',
                 month: 'long',
@@ -1402,9 +1492,11 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
             enlace.addEventListener('click', evento => {
                 evento.preventDefault();
                 panel.open = false;
+
                 const destinoId = enlace.getAttribute('href').replace('#', '');
                 activarVista('tareas', false);
                 history.replaceState(null, '', `#${destinoId}`);
+
                 const tarjeta = document.getElementById(destinoId);
                 if (tarjeta) {
                     tarjeta.focus();
@@ -1470,19 +1562,22 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
             if (esPreguntaDeVencimiento(pregunta)) {
                 const respuesta = respuestaDeVencimiento();
                 agregarMensaje('asistente', 'Búho de AulaNova', respuesta);
-                turnoAnterior = {pregunta, respuesta};
+                turnoAnterior = { pregunta, respuesta };
                 entrada.focus();
                 return;
             }
 
             enviar.disabled = true;
             opciones.forEach(boton => { boton.disabled = true; });
-            const espera = agregarMensaje('asistente', 'Búho de AulaNova', 'Consultando tus tareas…');
+
+            const espera = agregarMensaje(
+                'asistente', 'Búho de AulaNova', 'Consultando tus tareas…'
+            );
 
             try {
                 const respuesta = await fetch(formulario.action, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         pregunta,
                         turno_anterior: turnoAnterior
@@ -1500,9 +1595,10 @@ Portal del Estudiante y Padre de Familia - I.E. 2060 Virgen de Guadalupe
                 }
 
                 const texto = datos.respuesta.replace(/\*\*([^*]+)\*\*/g, '$1').trim();
+
                 espera.remove();
                 agregarMensaje('asistente', 'Búho de AulaNova', texto);
-                turnoAnterior = {pregunta, respuesta: texto};
+                turnoAnterior = { pregunta, respuesta: texto };
             } catch (error) {
                 espera.remove();
                 agregarMensaje('error', 'AulaNova', error.message || 'No se pudo conectar.');

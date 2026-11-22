@@ -9,18 +9,22 @@
     flex-wrap: wrap;
     margin-bottom: 24px;
 }
+
 .filter-group {
     display: flex;
     flex-direction: column;
     gap: 5px;
 }
+
 .filter-group label {
     font-size: 11px;
     font-weight: 700;
     color: #64748b;
     text-transform: uppercase;
 }
-.filter-group select, .filter-group input {
+
+.filter-group select,
+.filter-group input {
     padding: 8px 12px;
     border: 1.5px solid #cbd5e1;
     border-radius: 8px;
@@ -30,14 +34,26 @@
 
 /* Píldoras horizontales de asistencia */
 .attendance-pills {
+    position: relative;
     display: flex;
     gap: 6px;
     align-items: center;
     flex-wrap: wrap;
 }
+
+/* Oculta el círculo del radio y permite seleccionarlo con el teclado. */
 .pill-radio {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
 }
+
 .pill-label {
     padding: 6px 12px;
     border-radius: 20px;
@@ -47,28 +63,100 @@
     border: 1.5px solid #e2e8f0;
     background: #f8fafc;
     color: #64748b;
-    transition: all 0.15s ease;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
 }
+
 .pill-label:hover {
     border-color: #cbd5e1;
     background: #f1f5f9;
 }
 
+/* Indica qué opción tiene el foco al navegar con el teclado. */
+.pill-radio:focus-visible + .pill-label {
+    outline: 3px solid #075985;
+    outline-offset: 2px;
+}
+
 /* Colores activos para cada estado */
 #r_presente:checked ~ .p-pres,
-input[id^="pres_"]:checked + label { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+input[id^="pres_"]:checked + label {
+    background: var(--presente-fondo, #dcfce7);
+    color: var(--presente-texto, #15803d);
+    border-color: var(--presente-borde, #bbf7d0);
+}
 
 #r_tardanza:checked ~ .p-tar,
-input[id^="tar_"]:checked + label { background: #fef9c3; color: #a16207; border-color: #fde047; }
+input[id^="tar_"]:checked + label {
+    background: var(--tardanza-fondo, #fef9c3);
+    color: var(--tardanza-texto, #a16207);
+    border-color: var(--tardanza-borde, #fde047);
+}
 
 #r_ausente:checked ~ .p-aus,
-input[id^="aus_"]:checked + label { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+input[id^="aus_"]:checked + label {
+    background: var(--ausente-fondo, #fee2e2);
+    color: var(--ausente-texto, #b91c1c);
+    border-color: var(--ausente-borde, #fecaca);
+}
 
 #r_tj:checked ~ .p-tj,
-input[id^="tj_"]:checked + label { background: #e0f2fe; color: #0369a1; border-color: #bae6fd; }
+input[id^="tj_"]:checked + label {
+    background: var(--tardanza-justificada-fondo, #e0f2fe);
+    color: var(--tardanza-justificada-texto, #0369a1);
+    border-color: var(--tardanza-justificada-borde, #bae6fd);
+}
 
 #r_fj:checked ~ .p-fj,
-input[id^="fj_"]:checked + label { background: #f3e8ff; color: #6b21a8; border-color: #e9d5ff; }
+input[id^="fj_"]:checked + label {
+    background: var(--falta-justificada-fondo, #f3e8ff);
+    color: var(--falta-justificada-texto, #6b21a8);
+    border-color: var(--falta-justificada-borde, #e9d5ff);
+}
+
+/* Paleta que se activa desde Mi perfil > Preferencias de visualización. */
+html.modo-daltonico {
+    /* Presente: azul */
+    --presente-fondo: #dbeafe;
+    --presente-texto: #17365d;
+    --presente-borde: #24558a;
+
+    /* Tardanza: ámbar */
+    --tardanza-fondo: #fff1c2;
+    --tardanza-texto: #533900;
+    --tardanza-borde: #795400;
+
+    /* Ausente: violeta */
+    --ausente-fondo: #ede2ff;
+    --ausente-texto: #422268;
+    --ausente-borde: #67418c;
+
+    /* Tardanza justificada: turquesa */
+    --tardanza-justificada-fondo: #d5f3f1;
+    --tardanza-justificada-texto: #124a4b;
+    --tardanza-justificada-borde: #266466;
+
+    /* Falta justificada: gris */
+    --falta-justificada-fondo: #e8eaed;
+    --falta-justificada-texto: #27313d;
+    --falta-justificada-borde: #485460;
+}
+
+/* Reserva el espacio del borde para que los botones no se muevan al elegir. */
+html.modo-daltonico .pill-label {
+    border-width: 3px;
+}
+
+/* El borde doble y el subrayado identifican el estado elegido por su forma. */
+html.modo-daltonico .pill-radio:checked + .pill-label,
+html.modo-daltonico #r_presente:checked ~ .p-pres,
+html.modo-daltonico #r_tardanza:checked ~ .p-tar,
+html.modo-daltonico #r_ausente:checked ~ .p-aus,
+html.modo-daltonico #r_tj:checked ~ .p-tj,
+html.modo-daltonico #r_fj:checked ~ .p-fj {
+    border-style: double;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
 
 .bulk-bar {
     background: #f8fafc;
@@ -82,11 +170,13 @@ input[id^="fj_"]:checked + label { background: #f3e8ff; color: #6b21a8; border-c
     flex-wrap: wrap;
     gap: 10px;
 }
+
 .bulk-label {
     font-size: 13px;
     font-weight: 600;
     color: #334155;
 }
+
 .btn-bulk {
     padding: 5px 10px;
     border-radius: 6px;
@@ -97,7 +187,10 @@ input[id^="fj_"]:checked + label { background: #f3e8ff; color: #6b21a8; border-c
     cursor: pointer;
     transition: all 0.1s;
 }
-.btn-bulk:hover { background: #f1f5f9; }
+
+.btn-bulk:hover {
+    background: #f1f5f9;
+}
 
 .obs-input {
     width: 100%;
@@ -107,4 +200,9 @@ input[id^="fj_"]:checked + label { background: #f3e8ff; color: #6b21a8; border-c
     font-size: 12px;
     background: #f8fafc;
 }
-.obs-input:focus { border-color: #0284c7; background: #ffffff; outline: none; }
+
+.obs-input:focus {
+    border-color: #0284c7;
+    background: #ffffff;
+    outline: none;
+}
