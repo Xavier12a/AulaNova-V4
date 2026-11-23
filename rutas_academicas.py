@@ -214,7 +214,9 @@ def dashboard_docente():
         })
 
     comunicados_recientes = conn.execute('''
-        SELECT * FROM Comunicados ORDER BY id_comunicado DESC LIMIT 2
+        SELECT * FROM Comunicados
+        WHERE COALESCE(destinatario, 'Toda la Comunidad') IN ('Toda la Comunidad', 'Solo Docentes')
+        ORDER BY id_comunicado DESC LIMIT 2
     ''').fetchall()
     conn.close()
 
@@ -312,7 +314,8 @@ def dashboard_estudiante():
     ''', (usuario['id_usuario'],)).fetchall()
 
     comunicados_recientes = conn.execute('''
-        SELECT * FROM Comunicados WHERE destinatario != 'Solo Docentes'
+        SELECT * FROM Comunicados
+        WHERE COALESCE(destinatario, 'Toda la Comunidad') IN ('Toda la Comunidad', 'Estudiantes y Familias')
         ORDER BY id_comunicado DESC
     ''').fetchall()
 
@@ -1494,19 +1497,30 @@ def libreta_academica():
 
 @app.route('/comunicados', methods=['GET', 'POST'])
 def gestionar_comunicados():
-    if 'id_rol' not in session:
+    rol = session.get('id_rol')
+    if rol not in (1, 2, 3) or not session.get('id_usuario'):
         return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        if rol == 3:
+            return 'No tienes permiso para publicar comunicados.', 403
+
+        destinatario = request.form.get('destinatario', 'Toda la Comunidad')
+        publicos = {'Toda la Comunidad', 'Estudiantes y Familias'}
+        if rol == 1:
+            publicos.add('Solo Docentes')
+        if destinatario not in publicos:
+            return 'No tienes permiso para publicar para ese destinatario.', 403
 
     conn = get_db_connection()
     usuario = conn.execute(
         'SELECT * FROM Usuarios WHERE id_usuario = ?', (session['id_usuario'],)
     ).fetchone()
 
-    if request.method == 'POST' and session['id_rol'] in [1, 2]:
+    if request.method == 'POST':
         titulo = request.form['titulo'].strip()
         mensaje = request.form['mensaje'].strip()
         categoria = request.form.get('categoria', 'General')
-        destinatario = request.form.get('destinatario', 'Toda la Comunidad')
         fecha_evento = request.form.get('fecha_evento', '').strip() or None
         hora_evento = request.form.get('hora_evento', '').strip() or None
         lugar_evento = request.form.get('lugar_evento', '').strip() or None
@@ -1529,11 +1543,13 @@ def gestionar_comunicados():
         flash('Comunicado publicado correctamente.')
         return redirect(url_for('gestionar_comunicados'))
 
-    if session['id_rol'] == 3:
+    if rol in (2, 3):
+        grupo = 'Solo Docentes' if rol == 2 else 'Estudiantes y Familias'
         comunicados = conn.execute('''
-            SELECT * FROM Comunicados WHERE destinatario != 'Solo Docentes'
+            SELECT * FROM Comunicados
+            WHERE COALESCE(destinatario, 'Toda la Comunidad') IN ('Toda la Comunidad', ?)
             ORDER BY id_comunicado DESC
-        ''').fetchall()
+        ''', (grupo,)).fetchall()
     else:
         comunicados = conn.execute(
             'SELECT * FROM Comunicados ORDER BY id_comunicado DESC'

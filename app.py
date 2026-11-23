@@ -1,12 +1,16 @@
 """Inicio, gestión de contraseñas y consulta de la base de datos de AulaNova."""
 
 import hmac
+import os
 import secrets
+import sqlite3
+import tempfile
 from contextlib import closing
+from datetime import datetime
 
 from flask import (
     abort, flash, g, redirect, render_template, render_template_string,
-    request, session, url_for
+    request, send_file, session, url_for
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -190,7 +194,7 @@ def comprobar_sesion():
         return None
 
     # Bloquea nuevamente la pestaña Base de datos al navegar fuera de ella
-    if request.endpoint != "base_datos":
+    if request.endpoint not in {"base_datos", "descargar_backup", "restaurar_backup"}:
         session.pop("acceso_base_datos", None)
 
     id_usuario = session.get("id_usuario")
@@ -406,6 +410,93 @@ def base_datos():
         pagina=pagina,
         paginas=paginas,
     )
+
+
+@app.route("/admin/descargar-backup")
+def descargar_backup():
+    # Descarga una copia de seguridad íntegra de SQLite (solo con panel desbloqueado)
+    if session.get("id_usuario") is None:
+        return redirect(url_for("index"))
+
+    if session.get("id_rol") != 1 or not session.get("acceso_base_datos"):
+        abort(403)
+
+    carpeta_base = os.path.dirname(os.path.abspath(__file__))
+    carpeta_backups = os.path.join(carpeta_base, "backups")
+    os.makedirs(carpeta_backups, exist_ok=True)
+
+    fecha = datetime.now().strftime("%Y%m%d_%H%M%S")
+    nombre_archivo = f"aulanova_backup_{fecha}.db"
+    ruta_destino = os.path.join(carpeta_backups, nombre_archivo)
+
+    with closing(get_db_connection()) as origen, closing(
+        sqlite3.connect(ruta_destino)
+    ) as destino:
+        origen.backup(destino)
+
+    return send_file(
+        ruta_destino,
+        as_attachment=True,
+        download_name=nombre_archivo,
+    )
+
+
+@app.post("/admin/restaurar-backup")
+def restaurar_backup():
+    # Restaura una copia de seguridad .db validando integridad y esquema de AulaNova
+    if session.get("id_usuario") is None:
+        return redirect(url_for("index"))
+
+    if session.get("id_rol") != 1 or not session.get("acceso_base_datos"):
+        abort(403)
+
+    verificar_formulario()
+
+    archivo = request.files.get("archivo_backup")
+    if not archivo or not archivo.filename:
+        flash("Selecciona un archivo de respaldo (.db) antes de restaurar.")
+        return redirect(url_for("base_datos"))
+
+    cabecera = archivo.stream.read(16)
+    archivo.stream.seek(0)
+    if cabecera != b"SQLite format 3\x00":
+        flash("El archivo seleccionado no es una base de datos SQLite válida.")
+        return redirect(url_for("base_datos"))
+
+    fd, ruta_temporal = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+
+    try:
+        archivo.save(ruta_temporal)
+
+        with closing(sqlite3.connect(ruta_temporal)) as origen:
+            estado_db = origen.execute("PRAGMA integrity_check").fetchone()[0]
+            tablas_backup = {
+                fila[0]
+                for fila in origen.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            if estado_db != "ok" or not {"Usuarios", "Cursos"}.issubset(tablas_backup):
+                flash("El archivo está dañado o no corresponde a AulaNova.")
+                return redirect(url_for("base_datos"))
+
+            with closing(get_db_connection()) as destino:
+                origen.backup(destino)
+                usuario_actual = destino.execute(
+                    "SELECT version_clave FROM Usuarios WHERE id_usuario = ?",
+                    (session["id_usuario"],)
+                ).fetchone()
+                if usuario_actual:
+                    session["version_clave"] = usuario_actual["version_clave"]
+
+        session["acceso_base_datos"] = True
+        flash("Base de datos restaurada correctamente desde el backup.")
+    finally:
+        if os.path.exists(ruta_temporal):
+            os.remove(ruta_temporal)
+
+    return redirect(url_for("base_datos"))
 
 
 PANTALLA_CLAVE = """

@@ -20,7 +20,16 @@
     .db-cabecera, .db-pie { justify-content: space-between; }
     .db-cabecera h2 { margin: 0; font-size: 20px; }
     .db-detalle, .db-pie { color: #526477; font-size: 13px; }
-    .db-controles { margin: 20px 0 14px; }
+    .db-controles {
+        margin: 20px 0 14px;
+        justify-content: space-between;
+    }
+    .db-grupo-izq, .db-grupo-der {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
     .db-controles select, .db-controles button, .db-pie a {
         padding: 8px 12px;
         border: 1px solid #cbd5e1;
@@ -35,6 +44,33 @@
         border-color: #08689b;
         cursor: pointer;
     }
+    .db-controles a.btn-backup {
+        padding: 8px 14px;
+        border-radius: 7px;
+        background: #15803d;
+        color: white;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .db-controles a.btn-backup:hover { background: #166534; }
+    .db-form-restaurar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .db-form-restaurar input[type="file"] {
+        font-size: 13px;
+        color: #34485c;
+        max-width: 220px;
+    }
+    .db-controles button.btn-restaurar {
+        background: #b45309;
+        border-color: #b45309;
+        color: white;
+        font-weight: 500;
+    }
+    .db-controles button.btn-restaurar:hover { background: #92400e; }
     .db-grilla { overflow: auto; }
     .db-grilla table { width: 100%; border-collapse: collapse; }
     .db-grilla caption { text-align: left; padding: 8px 0; color: #526477; }
@@ -129,18 +165,31 @@
         <span class="db-detalle">Solo lectura</span>
     </div>
 
-    <!-- Selector de tabla de la base de datos -->
-    <form class="db-controles" method="get" action="{{ url_for('base_datos') }}">
-        <label for="tabla">Tabla</label>
-        <select name="tabla" id="tabla" onchange="this.form.submit()">
-            {% for nombre in tablas %}
-            <option value="{{ nombre }}" {% if nombre == tabla %}selected{% endif %}>
-                {{ nombre }}
-            </option>
-            {% endfor %}
-        </select>
-        <button type="submit">Actualizar</button>
-    </form>
+    <div class="db-controles">
+        <form class="db-grupo-izq" method="get" action="{{ url_for('base_datos') }}">
+            <label for="tabla">Tabla</label>
+            <select name="tabla" id="tabla" onchange="this.form.submit()">
+                {% for nombre in tablas %}
+                <option value="{{ nombre }}" {% if nombre == tabla %}selected{% endif %}>
+                    {{ nombre }}
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit">Actualizar</button>
+        </form>
+
+        <div class="db-grupo-der">
+            <a href="{{ url_for('descargar_backup') }}" class="btn-backup">Descargar Backup (.db)</a>
+
+            <form class="db-form-restaurar" method="post" action="{{ url_for('restaurar_backup') }}"
+                  enctype="multipart/form-data"
+                  onsubmit="return confirm('¿Restaurar este backup? Se reemplazarán los datos actuales del sistema.');">
+                <input type="hidden" name="token" value="{{ token }}">
+                <input type="file" name="archivo_backup" accept=".db,.sqlite,.sqlite3" required>
+                <button type="submit" class="btn-restaurar">Restaurar Backup</button>
+            </form>
+        </div>
+    </div>
 
     <div class="db-grilla">
         <table>
@@ -179,7 +228,6 @@
         </table>
     </div>
 
-    <!-- Paginación cuando la tabla supera el límite por página -->
     {% if paginas > 1 %}
     <div class="db-pie">
         <span>Página {{ pagina }} de {{ paginas }}</span>
